@@ -4,6 +4,10 @@ Just another QFC app for IBs.
 
 ## Prompt history to reproduce
 
+
+History of prompts to recreate application from scratch.
+
+--- 
 I am thinking about macosx app with modern osx look and feel, white background, charcoal style and pastel colors. UX should had look&feel like shadcn components. Icons similar to "Zed Editor"( Zed, Hero, Lucide icons). App should help me plan human resources to different projects, i am in rolle Project Manager.
 Few use cases:
 use calendar with working days in one row for whole month, i plan year quarter as forecast for projects. I place employees on days with project. Perfectly only one project per day, but it can happen that there are max 3 projects. Visually whole quarter is shown, one month hat whole row and splittet to month, weeks (with number), and days (working days with date).
