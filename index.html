@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IBs QFC Planning and Forecast App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            },
+            colors: {
+              charcoal: {
+                50: '#f6f7f8',
+                100: '#eceef0',
+                200: '#d5d9df',
+                300: '#b1b8c2',
+                400: '#8691a0',
+                500: '#647081',
+                600: '#4f5968',
+                700: '#404854',
+                800: '#363c45', // Primary Text
+                900: '#2f333a',
+              },
+              pastel: {
+                blue: '#E3F2FD',
+                blueText: '#1565C0',
+                green: '#E8F5E9',
+                greenText: '#2E7D32',
+                purple: '#F3E5F5',
+                purpleText: '#7B1FA2',
+                orange: '#FFF3E0',
+                orangeText: '#EF6C00',
+                pink: '#FCE4EC',
+                pinkText: '#C2185B',
+                gray: '#F5F5F5',
+                grayText: '#616161'
+              }
+            }
+          },
+        },
+      }
+    </script>
+    <style>
+      /* Custom Scrollbar for macOS feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+      .glass-panel {
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(229, 231, 235, 0.8);
+      }
+    </style>
+
+<link rel="stylesheet" href="/index.css">
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/ibs-qfc/assets/index-d4p16PcP.js"></script>
+</head>
+  <body class="bg-gray-50 text-charcoal-800 antialiased overflow-hidden">
+    <div id="root"></div>
+</body>
+</html>
