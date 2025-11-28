@@ -1,13 +1,16 @@
-import React, { useState } from 'react';
-import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock } from 'lucide-react';
-import { ViewMode, PlanVersion } from '../types';
+
+import React, { useState, useEffect } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { CalendarDays, BarChart3, Settings, Users, Layers, History, Plus, Globe, Clock, Building2, Sparkles, Key, ExternalLink, PieChart, Home, UserCircle, Bot, BotOff, Trash2, CookingPot, BookMarked, GitCommit, Terminal, Cpu, Zap, Shield, Activity } from 'lucide-react';
+import { PlanVersion, UserRole } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { useAuth } from '../contexts/AuthContext';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
+import { AsciiSpinner } from './ui/AsciiSpinner';
 
 interface SidebarProps {
-  currentView: ViewMode;
-  onChangeView: (view: ViewMode) => void;
   versions: PlanVersion[];
   activeVersionId: string;
   onSelectVersion: (id: string) => void;
@@ -15,131 +18,206 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
-  currentView, 
-  onChangeView,
   versions,
   activeVersionId,
   onSelectVersion,
   onCreateVersion
 }) => {
   const { t, language, setLanguage, formatDate } = useLanguage();
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { apiKey, setApiKey, isAiEnabled, setIsAiEnabled, isSettingsModalOpen, openSettings, closeSettings } = useSettings();
+  const { user, loginAs, isRole } = useAuth();
+  const navigate = useNavigate();
+  
+  const [isRoleSwitcherOpen, setIsRoleSwitcherOpen] = useState(false);
+  const [isChangelogOpen, setIsChangelogOpen] = useState(false);
 
-  const menuItems = [
-    { id: ViewMode.PLANNER, label: t('sidebar.resourcePlan'), icon: CalendarDays },
-    { id: ViewMode.FORECAST, label: t('sidebar.quarterlyForecast'), icon: BarChart3 },
-  ];
+  // Local state for Settings Modal
+  const [localLang, setLocalLang] = useState(language);
+  const [localAiEnabled, setLocalAiEnabled] = useState(isAiEnabled);
+  const [localApiKey, setLocalApiKey] = useState(apiKey);
 
-  const manageItems = [
-    { id: ViewMode.TEAM, label: t('sidebar.team'), icon: Users },
-    { id: ViewMode.PROJECTS, label: t('sidebar.projects'), icon: Layers },
-  ];
+  // Sync local state when modal opens
+  useEffect(() => {
+    if (isSettingsModalOpen) {
+        setLocalLang(language);
+        setLocalAiEnabled(isAiEnabled);
+        setLocalApiKey(apiKey);
+    }
+  }, [isSettingsModalOpen, language, isAiEnabled, apiKey]);
+
+  const handleSaveSettings = () => {
+      setLanguage(localLang);
+      setIsAiEnabled(localAiEnabled);
+      setApiKey(localApiKey);
+      closeSettings();
+  };
+
+  // Navigation Logic
+  const getMenuItems = () => {
+    const items = [];
+    if (isRole('employee')) {
+       items.push({ path: '/my-overview', label: t('sidebar.myOverview'), icon: Home });
+    }
+    
+    // Everyone sees Resource Plan (Read-only for Emp)
+    items.push({ path: '/planner', label: t('sidebar.resourcePlan'), icon: CalendarDays });
+
+    // Forecast: PM and BL only
+    if (isRole(['pm', 'bl'])) {
+        items.push({ path: '/forecast', label: t('sidebar.quarterlyForecast'), icon: BarChart3 });
+    }
+
+    // Financials: BL mainly, PM allowed (Moved to Planning section)
+    if (isRole(['pm', 'bl'])) {
+        items.push({ path: '/financials', label: t('sidebar.financials'), icon: PieChart });
+    }
+
+    return items;
+  };
+
+  const getManageItems = () => {
+     const items = [];
+     
+     // Team: PM and BL
+     if (isRole(['pm', 'bl'])) {
+        items.push({ path: '/team', label: t('sidebar.team'), icon: Users });
+     }
+     
+     // Projects: PM and BL
+     if (isRole(['pm', 'bl'])) {
+         items.push({ path: '/projects', label: t('sidebar.projects'), icon: Layers });
+     }
+     
+     // Customers: All can see (read only for emp)
+     items.push({ path: '/customers', label: t('sidebar.customers'), icon: Building2 });
+
+     return items;
+  };
+
+  const menuItems = getMenuItems();
+  const manageItems = getManageItems();
 
   return (
     <>
-    <div className="w-64 bg-charcoal-50 border-r border-charcoal-200 flex flex-col h-full flex-shrink-0">
+    <div className="w-64 bg-charcoal-50/50 backdrop-blur-xl border-r border-charcoal-200 flex flex-col h-full flex-shrink-0 z-20 shadow-[1px_0_10px_rgba(0,0,0,0.03)]">
       <div className="p-6 flex-1 flex flex-col min-h-0">
-        <div className="flex items-center gap-3 mb-8 flex-shrink-0">
-            <div className="w-8 h-8 bg-gradient-to-br from-charcoal-700 to-charcoal-900 rounded-lg flex items-center justify-center text-white font-bold shadow-md">
-                I
+        <div className="flex items-center gap-3 mb-8 flex-shrink-0 animate-fade-in">
+            <div className="w-8 h-8 bg-gradient-to-br from-charcoal-700 to-charcoal-900 rounded-lg flex items-center justify-center text-white shadow-md ring-1 ring-charcoal-400/20">
+                <CookingPot className="w-5 h-5" />
             </div>
-            <span className="font-semibold text-charcoal-900 tracking-tight text-lg">IBs QFC</span>
+            <span className="font-semibold text-charcoal-900 tracking-tight text-lg font-mono">IBs QFC Kitchen</span>
         </div>
 
         {/* Main Nav */}
-        <nav className="space-y-1 flex-shrink-0">
-          <div className="text-xs font-semibold text-charcoal-400 uppercase tracking-wider mb-3 px-3">{t('sidebar.planning')}</div>
-          {menuItems.map(item => {
-            const isActive = currentView === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => onChangeView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200
+        <nav className="space-y-1 flex-shrink-0 animate-slide-in-right" style={{ animationDelay: '0.1s' }}>
+          <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest mb-3 px-3 font-mono opacity-80">{t('sidebar.planning')}</div>
+          {menuItems.map(item => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group
+                ${isActive 
+                  ? 'bg-white text-charcoal-900 shadow-sm ring-1 ring-charcoal-200 translate-x-1' 
+                  : 'text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100 hover:translate-x-1'
+                }
+              `}
+            >
+              {({ isActive }) => (
+                <>
+                  <item.icon className={`w-4 h-4 transition-colors ${isActive ? 'text-charcoal-800' : 'text-charcoal-400 group-hover:text-charcoal-600'}`} />
+                  {item.label}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+
+        {manageItems.length > 0 && (
+        <nav className="space-y-1 mt-8 flex-shrink-0 animate-slide-in-right" style={{ animationDelay: '0.2s' }}>
+            <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest mb-3 px-3 font-mono opacity-80">{t('sidebar.manage')}</div>
+            {manageItems.map(item => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group
                   ${isActive 
-                    ? 'bg-white text-charcoal-900 shadow-sm ring-1 ring-charcoal-200' 
-                    : 'text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100'
+                    ? 'bg-white text-charcoal-900 shadow-sm ring-1 ring-charcoal-200 translate-x-1' 
+                    : 'text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100 hover:translate-x-1'
                   }
                 `}
               >
-                <item.icon className={`w-4 h-4 ${isActive ? 'text-charcoal-800' : 'text-charcoal-400'}`} />
-                {item.label}
-              </button>
-            );
-          })}
+                {({ isActive }) => (
+                  <>
+                    <item.icon className={`w-4 h-4 transition-colors ${isActive ? 'text-charcoal-800' : 'text-charcoal-400 group-hover:text-charcoal-600'}`} />
+                    {item.label}
+                  </>
+                )}
+              </NavLink>
+            ))}
         </nav>
+        )}
 
-        <nav className="space-y-1 mt-8 flex-shrink-0">
-            <div className="text-xs font-semibold text-charcoal-400 uppercase tracking-wider mb-3 px-3">{t('sidebar.manage')}</div>
-            {manageItems.map(item => {
-              const isActive = currentView === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => onChangeView(item.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200
-                    ${isActive 
-                      ? 'bg-white text-charcoal-900 shadow-sm ring-1 ring-charcoal-200' 
-                      : 'text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100'
-                    }
-                  `}
-                >
-                  <item.icon className={`w-4 h-4 ${isActive ? 'text-charcoal-800' : 'text-charcoal-400'}`} />
-                  {item.label}
-                </button>
-              );
-            })}
-        </nav>
-
-        {/* Version History / Timeline */}
-        <div className="mt-8 flex-1 flex flex-col min-h-0">
+        {/* Version History */}
+        {!isRole('employee') && (
+        <div className="mt-8 flex-1 flex flex-col min-h-0 animate-slide-in-right" style={{ animationDelay: '0.3s' }}>
           <div className="flex items-center justify-between px-3 mb-4 flex-shrink-0">
-             <div className="text-xs font-semibold text-charcoal-400 uppercase tracking-wider flex items-center gap-2">
+             <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest flex items-center gap-2 font-mono opacity-80">
                 <History className="w-3 h-3" /> {t('sidebar.versions')}
              </div>
              <button 
                 onClick={onCreateVersion}
-                className="text-charcoal-400 hover:text-blue-600 p-1 rounded-md hover:bg-blue-50 transition-colors"
+                className="text-charcoal-400 hover:text-blue-600 p-1.5 rounded-md hover:bg-blue-50 transition-colors hover:scale-110 active:scale-95"
                 title="Save new version"
               >
                 <Plus className="w-3.5 h-3.5" />
              </button>
           </div>
           
-          <div className="relative flex-1 overflow-y-auto custom-scrollbar px-2 pb-4"> 
+          <div className="relative flex-1 overflow-y-auto custom-scrollbar px-2 pb-2"> 
              {/* Timeline Container */}
-             <div className="relative pl-4 pt-1">
+             <div className="relative pt-2">
                 {/* Vertical Timeline Line */}
-                <div className="absolute left-[19px] top-3 bottom-3 w-px bg-charcoal-200" />
+                <div className="absolute left-6 top-0 bottom-0 w-px bg-gradient-to-b from-charcoal-200 via-charcoal-200 to-transparent" />
 
-                <div className="space-y-6 relative">
-                  {versions.slice().reverse().map((version) => {
+                <div className="space-y-1 relative">
+                  {versions.slice().reverse().map((version, index) => {
                       const isActive = activeVersionId === version.id;
+                      const isLatest = index === 0;
+
                       return (
-                          <div key={version.id} className="relative pl-6 group">
+                          <div key={version.id} className="relative pl-12 group">
+                              {/* Horizontal Connector Line */}
+                              <div className={`absolute left-6 top-[1.2rem] w-6 h-px transition-all duration-300 ${isActive ? 'bg-blue-300 w-6' : 'bg-charcoal-200 w-4 group-hover:w-6 group-hover:bg-charcoal-300'}`} />
+
                               {/* Timeline Node/Dot */}
-                              <button
-                                  onClick={() => onSelectVersion(version.id)}
-                                  className={`absolute left-[15px] top-2.5 w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-10 box-content
+                              <div 
+                                  className={`absolute left-[19px] top-3.5 w-2.5 h-2.5 rounded-full border-2 transition-all duration-300 z-10
                                       ${isActive 
-                                      ? 'bg-blue-600 border-white ring-2 ring-blue-200 shadow-md scale-110' 
-                                      : 'bg-white border-charcoal-300 group-hover:border-charcoal-400 group-hover:scale-110'}
+                                      ? 'bg-blue-600 border-white ring-2 ring-blue-100 shadow-sm scale-110' 
+                                      : 'bg-charcoal-50 border-charcoal-300 group-hover:border-charcoal-400 group-hover:bg-charcoal-200'}
                                   `}
                               />
                               
                               {/* Content Card */}
                               <button 
                                   onClick={() => onSelectVersion(version.id)}
-                                  className={`text-left w-full transition-all duration-200 rounded-lg p-2.5 border
+                                  className={`text-left w-full transition-all duration-200 rounded-lg p-3 border group-hover:translate-x-1
                                       ${isActive 
-                                          ? 'bg-white border-charcoal-200 shadow-sm translate-x-1' 
-                                          : 'bg-transparent border-transparent hover:bg-charcoal-100/50 hover:translate-x-1'}
+                                          ? 'bg-white border-charcoal-200 shadow-sm' 
+                                          : 'bg-transparent border-transparent hover:bg-white/50 hover:border-charcoal-100'}
                                   `}
                               >
-                                  <div className={`text-sm font-medium leading-snug mb-0.5 ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
-                                      {version.name}
+                                  <div className="flex items-center justify-between gap-2">
+                                      <div className={`text-sm font-medium leading-tight ${isActive ? 'text-charcoal-900' : 'text-charcoal-600'}`}>
+                                          {version.name}
+                                      </div>
+                                      {isLatest && (
+                                          <span className="text-[8px] font-bold text-blue-600 bg-blue-50/50 px-1.5 py-0.5 rounded-full border border-blue-100/50 uppercase tracking-wide ml-auto">
+                                            Latest
+                                          </span>
+                                      )}
                                   </div>
-                                  <div className="flex items-center gap-1.5 mt-1 text-[11px] text-charcoal-400">
+                                  <div className="flex items-center gap-1.5 mt-1.5 text-[11px] text-charcoal-400">
                                       <Clock className="w-3 h-3 opacity-60" />
                                       <span className="font-mono">{formatDate(new Date(version.createdAt), 'MMM d, HH:mm')}</span>
                                   </div>
@@ -151,39 +229,85 @@ export const Sidebar: React.FC<SidebarProps> = ({
              </div>
           </div>
         </div>
+        )}
 
       </div>
 
-      <div className="p-4 border-t border-charcoal-200 bg-charcoal-50 flex-shrink-0">
-        <button 
-            onClick={() => setIsSettingsOpen(true)}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100 transition-colors"
-        >
-          <Settings className="w-4 h-4" />
-          {t('sidebar.settings')}
-        </button>
-        <div className="mt-4 flex items-center gap-3 px-3">
-            <img src="https://ui-avatars.com/api/?name=Nazar+Kulyk&background=0D8ABC&color=fff" alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
-            <div className="text-xs">
-                <div className="font-medium text-charcoal-900">Nazar Kulyk</div>
-                <div className="text-charcoal-500">PM, Architect, Dev</div>
-            </div>
+      <div className="p-4 border-t border-charcoal-200 bg-charcoal-50/80 backdrop-blur flex-shrink-0 relative">
+        <div className="flex items-center justify-between">
+            <button 
+                onClick={openSettings}
+                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-charcoal-500 hover:text-charcoal-900 hover:bg-charcoal-100 transition-all duration-200 hover:shadow-sm"
+            >
+              <Settings className="w-4 h-4 transition-transform hover:rotate-45 duration-500" />
+              {t('sidebar.settings')}
+            </button>
+            <button 
+                onClick={() => setIsChangelogOpen(true)}
+                className="text-[10px] text-charcoal-400 font-mono pr-2 opacity-50 hover:opacity-100 hover:text-blue-600 transition-all cursor-pointer"
+            >
+                v1.1.0
+            </button>
         </div>
+        
+        {/* User Profile / Role Switcher Trigger */}
+        <button 
+            onClick={() => setIsRoleSwitcherOpen(!isRoleSwitcherOpen)}
+            className="mt-4 w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-charcoal-100 transition-all duration-200 text-left hover:shadow-sm border border-transparent hover:border-charcoal-200"
+        >
+            <img src={user.avatar} alt="User" className="w-8 h-8 rounded-full border border-charcoal-200" />
+            <div className="flex-1 min-w-0">
+                <div className="font-medium text-charcoal-900 text-xs truncate">{user.name}</div>
+                <div className="text-charcoal-500 text-[10px] uppercase truncate font-mono">{t(`roles.${user.role}`)}</div>
+            </div>
+            <UserCircle className="w-4 h-4 text-charcoal-400" />
+        </button>
+
+        {/* Role Switcher Popover */}
+        {isRoleSwitcherOpen && (
+            <>
+            <div className="fixed inset-0 z-40" onClick={() => setIsRoleSwitcherOpen(false)} />
+            <div className="absolute bottom-full left-4 right-4 mb-2 bg-white rounded-xl shadow-xl border border-charcoal-200 p-2 z-50 animate-in slide-in-from-bottom-2 fade-in zoom-in-95 duration-200">
+                <div className="text-xs font-bold text-charcoal-400 uppercase tracking-widest px-2 py-2 border-b border-charcoal-100 mb-1 font-mono">
+                    {t('sidebar.switchRole')}
+                </div>
+                {['pm', 'employee', 'bl'].map((role) => (
+                    <button
+                        key={role}
+                        onClick={() => {
+                            loginAs(role as UserRole);
+                            setIsRoleSwitcherOpen(false);
+                            // Navigate based on role
+                            navigate(role === 'employee' ? '/my-overview' : '/planner');
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between
+                            ${user.role === role ? 'bg-blue-50 text-blue-700 font-medium' : 'text-charcoal-600 hover:bg-charcoal-50'}
+                        `}
+                    >
+                        {t(`roles.${role}`)}
+                        {user.role === role && <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse-subtle" />}
+                    </button>
+                ))}
+            </div>
+            </>
+        )}
       </div>
     </div>
 
     {/* Settings Modal */}
-    <Modal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} title={t('sidebar.settings')} size="sm">
+    <Modal isOpen={isSettingsModalOpen} onClose={closeSettings} title={t('sidebar.settings')} size="sm">
         <div className="space-y-6">
+            
+            {/* Language Section */}
             <div>
                 <h4 className="text-sm font-medium text-charcoal-900 mb-3 flex items-center gap-2">
                     <Globe className="w-4 h-4" /> {t('sidebar.language')}
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                     <button 
-                        onClick={() => setLanguage('en')}
-                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
-                            language === 'en' 
+                        onClick={() => setLocalLang('en')}
+                        className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all ${
+                            localLang === 'en' 
                             ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-500/20' 
                             : 'bg-white border-charcoal-200 text-charcoal-600 hover:bg-charcoal-50'
                         }`}
@@ -191,9 +315,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>🇺🇸</span> English
                     </button>
                     <button 
-                         onClick={() => setLanguage('de')}
-                        className={`flex items-center justify-center gap-2 py-2 px-4 rounded-lg border text-sm font-medium transition-all ${
-                            language === 'de' 
+                        onClick={() => setLocalLang('de')}
+                        className={`flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all ${
+                            localLang === 'de' 
                             ? 'bg-blue-50 border-blue-200 text-blue-700 ring-1 ring-blue-500/20' 
                             : 'bg-white border-charcoal-200 text-charcoal-600 hover:bg-charcoal-50'
                         }`}
@@ -202,10 +326,207 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
             </div>
-            
-            <div className="pt-4 border-t border-charcoal-100 flex justify-end">
-                <Button onClick={() => setIsSettingsOpen(false)}>{t('sidebar.close')}</Button>
+
+            <div className="h-px bg-charcoal-100"></div>
+
+            {/* AI Configuration Section */}
+            <div>
+                <h4 className="text-sm font-medium text-charcoal-900 mb-3 flex items-center gap-2">
+                    {localAiEnabled ? <Bot className="w-4 h-4 text-blue-600" /> : <BotOff className="w-4 h-4 text-charcoal-400" />}
+                    {t('sidebar.aiConfig')}
+                </h4>
+                
+                <div className="bg-charcoal-50 rounded-xl p-4 border border-charcoal-100 space-y-4">
+                    {/* Toggle */}
+                    <div className="flex items-center justify-between">
+                         <label htmlFor="ai-toggle" className="text-sm font-medium text-charcoal-700 cursor-pointer select-none">
+                            {t('sidebar.enableAI')}
+                         </label>
+                         <div className="relative inline-block w-10 h-5 align-middle select-none transition duration-200 ease-in">
+                            <input 
+                                type="checkbox" 
+                                name="toggle" 
+                                id="ai-toggle" 
+                                className="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-transform duration-200 ease-in-out checked:translate-x-5 checked:border-blue-600 border-charcoal-300"
+                                checked={localAiEnabled}
+                                onChange={(e) => setLocalAiEnabled(e.target.checked)}
+                            />
+                            <label htmlFor="ai-toggle" className={`toggle-label block overflow-hidden h-5 rounded-full cursor-pointer transition-colors duration-200 ${localAiEnabled ? 'bg-blue-200' : 'bg-charcoal-200'}`}></label>
+                         </div>
+                    </div>
+                    
+                    {localAiEnabled && (
+                        <div className="animate-fade-in-up">
+                             <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">{t('sidebar.apiKey')}</label>
+                             <div className="flex gap-2">
+                                 <div className="relative flex-1">
+                                     <input 
+                                         type="password"
+                                         value={localApiKey}
+                                         onChange={(e) => setLocalApiKey(e.target.value)}
+                                         placeholder={t('sidebar.apiKeyPlaceholder')}
+                                         className="w-full pl-9 pr-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all bg-white"
+                                     />
+                                     <Key className="absolute left-3 top-2.5 w-4 h-4 text-charcoal-400 pointer-events-none" />
+                                 </div>
+                                 {localApiKey && (
+                                     <button 
+                                        onClick={() => setLocalApiKey('')}
+                                        className="p-2 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded-lg border border-charcoal-200 hover:border-red-200 transition-colors"
+                                        title="Clear API Key"
+                                     >
+                                         <Trash2 className="w-4 h-4" />
+                                     </button>
+                                 )}
+                             </div>
+                             <a 
+                                href="https://aistudio.google.com/app/apikey" 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline mt-2 ml-1"
+                             >
+                                {t('sidebar.getKey')} <ExternalLink className="w-3 h-3" />
+                             </a>
+                        </div>
+                    )}
+                </div>
             </div>
+            
+            <div className="pt-2 flex justify-end gap-3">
+                <Button variant="ghost" onClick={closeSettings}>{t('sidebar.close')}</Button>
+                <Button onClick={handleSaveSettings}>{t('sidebar.saveSettings')}</Button>
+            </div>
+        </div>
+    </Modal>
+
+    {/* Changelog Modal - Light Sci-Fi Style */}
+    <Modal isOpen={isChangelogOpen} onClose={() => setIsChangelogOpen(false)} title="System Record" size="lg">
+        <div className="relative bg-white rounded-lg overflow-hidden border border-charcoal-200 text-charcoal-800 font-mono shadow-[0_0_50px_rgba(0,0,0,0.05)]">
+            {/* Background Effects */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.03)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent animate-scan z-20 opacity-50"></div>
+
+            {/* Header */}
+            <div className="relative z-10 p-6 border-b border-charcoal-100 flex justify-between items-start bg-charcoal-50/50 backdrop-blur-sm">
+                <div>
+                    <div className="flex items-center gap-3 mb-2">
+                        <BookMarked className="w-6 h-6 text-emerald-600" />
+                        <h2 className="text-xl font-bold tracking-widest text-emerald-900">CHANGELOG.SYS</h2>
+                    </div>
+                    <div className="flex gap-4 text-xs text-charcoal-500">
+                        <div className="flex items-center gap-1.5">
+                            <GitCommit className="w-3 h-3" />
+                            <span>Build: v1.1.0-stable</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <Clock className="w-3 h-3" />
+                            <span>{new Date().toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded text-xs font-bold text-emerald-700">
+                        <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                        SYSTEM ONLINE
+                    </div>
+                    <span className="text-[10px] text-charcoal-400">ID: QFC-KITCHEN-CORE</span>
+                </div>
+            </div>
+
+            {/* Terminal Content */}
+            <div className="relative z-10 p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                
+                {/* Feature Block */}
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+                    <div className="flex items-center gap-2 text-sm font-bold text-blue-700 border-b border-blue-100 pb-1 mb-2">
+                        <Cpu className="w-4 h-4" />
+                        <span>CORE MODULE UPDATES</span>
+                    </div>
+                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
+                         <li className="flex gap-3 items-start group">
+                            <span className="text-blue-600 mt-0.5 group-hover:text-blue-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">AI Resource Chat Assistant</strong>
+                                Integrated Gemini 2.5 Flash model for real-time resource querying via specialized terminal interface. Supports minimizing and context-aware responses.
+                            </div>
+                        </li>
+                        <li className="flex gap-3 items-start group">
+                            <span className="text-blue-600 mt-0.5 group-hover:text-blue-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Strategic AI Forecasting</strong>
+                                Added 'AI Analysis' to Quarterly Forecast view. Uses Gemini 3 Pro to generate executive summaries, risk assessments, and tactical directives.
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                {/* UX Block */}
+                <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                    <div className="flex items-center gap-2 text-sm font-bold text-purple-700 border-b border-purple-100 pb-1 mb-2">
+                        <Activity className="w-4 h-4" />
+                        <span>INTERFACE ENHANCEMENTS</span>
+                    </div>
+                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
+                         <li className="flex gap-3 items-start group">
+                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Resource Heatmap Visualization</strong>
+                                Updated Planner grid to visualize allocation density. Introduced overload alerts and conflict detection markers.
+                            </div>
+                        </li>
+                        <li className="flex gap-3 items-start group">
+                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Drag & Drop Assignment</strong>
+                                Implemented intuitive drag-and-drop mechanics for resource reallocation in planner view.
+                            </div>
+                        </li>
+                         <li className="flex gap-3 items-start group">
+                            <span className="text-purple-600 mt-0.5 group-hover:text-purple-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Financial Dashboard</strong>
+                                New module for tracking project margins, revenue forecasts across quarters, and budget utilization.
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                 {/* System Block */}
+                 <div className="space-y-3 animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
+                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-700 border-b border-emerald-100 pb-1 mb-2">
+                        <Shield className="w-4 h-4" />
+                        <span>SECURITY & INFRASTRUCTURE</span>
+                    </div>
+                    <ul className="space-y-2 text-xs leading-relaxed text-charcoal-600">
+                         <li className="flex gap-3 items-start group">
+                            <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Local Key Storage</strong>
+                                API Keys are now strictly stored in localStorage and never transmitted to backend servers.
+                            </div>
+                        </li>
+                        <li className="flex gap-3 items-start group">
+                            <span className="text-emerald-600 mt-0.5 group-hover:text-emerald-500 transition-colors">➜</span>
+                            <div>
+                                <strong className="text-charcoal-900 block mb-0.5">Localization Engine</strong>
+                                Full EN/DE translation support across all modules including AI prompts.
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+                
+                {/* Footer Command Line */}
+                <div className="pt-4 border-t border-charcoal-100 flex items-center gap-2 text-xs font-mono opacity-80 bg-charcoal-50 -mx-6 px-6 -mb-6 py-3">
+                    <Terminal className="w-3 h-3 text-emerald-600" />
+                    <span className="text-charcoal-500">root@ibs-qfc:~$</span>
+                    <span className="text-emerald-600 animate-pulse">_</span>
+                </div>
+
+            </div>
+            
+            {/* Corner Accents */}
+            <div className="absolute top-0 left-0 w-8 h-8 border-t-2 border-l-2 border-blue-500/20 rounded-tl-lg pointer-events-none"></div>
+            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-2 border-r-2 border-blue-500/20 rounded-br-lg pointer-events-none"></div>
         </div>
     </Modal>
     </>

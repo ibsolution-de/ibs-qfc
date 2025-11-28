@@ -1,5 +1,8 @@
 {
-  "name": "IBs QFC",
+  "name": "IBs QFC Kitchen",
   "description": "A modern macOS-style resource planning and quarterly forecasting tool for project managers.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "dependencies": {
+    "react-router-dom": "^6.22.0"
+  }
 }

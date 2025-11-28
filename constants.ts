@@ -1,4 +1,5 @@
-import { Project, Employee, QuarterData, Assignment, PlanVersion } from './types';
+
+import { Project, Employee, QuarterData, Assignment, PlanVersion, Customer, Absence, PublicHoliday } from './types';
 import { eachDayOfInterval, format, getDay, isWeekend, getISOWeek } from 'date-fns';
 
 export const PASTEL_VARIANTS = {
@@ -12,23 +13,63 @@ export const PASTEL_VARIANTS = {
 
 export const MOCK_PROJECTS: Project[] = [
   // Active Projects
-  { id: 'p1', name: 'Energy Mgmt System', client: 'MAN', color: 'blue', status: 'active', budget: '50k', startDate: '2025-01-01', endDate: '2025-10-31', volume: 80, topic: 'Sustainability', notes: 'Core project for Q4' },
-  { id: 'p2', name: 'Internal QFC App', client: 'IBs', color: 'purple', status: 'active', budget: '5k', startDate: '2025-06-01', endDate: '2025-12-31', volume: 20, topic: 'Internal Tooling', notes: 'MVP phase' },
-  { id: 'p3', name: 'ÜBA 2.0', client: 'Soka Bau', color: 'green', status: 'active', budget: '100k', startDate: '2025-03-01', endDate: '2026-01-31', volume: 70, topic: 'Digitalization', notes: 'Long term contract' },
-  { id: 'p4', name: 'Weiterbildung', client: 'Soka Bau', color: 'orange', status: 'active', budget: '80k', startDate: '2024-09-01', endDate: '2025-07-31', volume: 40, topic: 'Education', notes: 'Maintenance mode' },
-  { id: 'p5', name: 'Intralogistic Shuttle', client: 'Storck', color: 'pink', status: 'active', budget: '100k', startDate: '2025-05-01', endDate: '2026-02-28', volume: 30, topic: 'Logistics', notes: 'Hardware integration required' },
+  { 
+    id: 'p1', name: 'Energy Mgmt System', client: 'MAN', color: 'blue', status: 'active', budget: '50k', 
+    startDate: '2025-01-01', endDate: '2025-10-31', volume: 80, topic: 'Sustainability', notes: 'Core project for Q4', isCritical: true, hourlyRate: 110,
+    milestones: [
+        { id: 'm1', name: 'MVP Release', date: '2025-06-15', phase: 'deployment' },
+        { id: 'm2', name: 'Final Handover', date: '2025-10-30', phase: 'deployment' }
+    ]
+  },
+  { 
+    id: 'p2', name: 'Internal QFC App', client: 'IBs', color: 'purple', status: 'active', budget: '5k', 
+    startDate: '2025-06-01', endDate: '2025-12-31', volume: 20, topic: 'Internal Tooling', notes: 'MVP phase', hourlyRate: 0,
+    milestones: [
+        { id: 'm3', name: 'Internal Demo', date: '2025-11-15', phase: 'testing' }
+    ]
+  },
+  { 
+    id: 'p3', name: 'ÜBA 2.0', client: 'Soka Bau', color: 'green', status: 'active', budget: '100k', 
+    startDate: '2025-03-01', endDate: '2026-01-31', volume: 70, topic: 'Digitalization', notes: 'Long term contract', isCritical: true, hourlyRate: 125,
+    milestones: [
+        { id: 'm4', name: 'Phase 1 Go-Live', date: '2025-09-01', phase: 'deployment' },
+        { id: 'm5', name: 'Phase 2 Kickoff', date: '2025-10-01', phase: 'planning' }
+    ]
+  },
+  { id: 'p4', name: 'Weiterbildung', client: 'Soka Bau', color: 'orange', status: 'active', budget: '80k', startDate: '2024-09-01', endDate: '2025-07-31', volume: 40, topic: 'Education', notes: 'Maintenance mode', hourlyRate: 125 },
+  { 
+    id: 'p5', name: 'Intralogistic Shuttle', client: 'Storck', color: 'pink', status: 'active', budget: '100k', 
+    startDate: '2025-05-01', endDate: '2026-02-28', volume: 30, topic: 'Logistics', notes: 'Hardware integration required', isCritical: true, hourlyRate: 130,
+    milestones: [
+        { id: 'm6', name: 'Hardware Integration', date: '2025-11-20', phase: 'development' }
+    ]
+  },
   
-  // Opportunities (Must Win & Alternatives)
-  { id: 'p6', name: 'Rampe 160', client: 'Storck', color: 'gray', status: 'opportunity', budget: '150k', startDate: '2025-10-01', endDate: '2026-05-31', volume: 60, topic: 'Logistics', notes: 'Follow up to Shuttle' },
-  { id: 'p7', name: 'Cloud Migration Ph2', client: 'Allianz', color: 'blue', status: 'opportunity', budget: '120k', startDate: '2025-04-15', endDate: '2025-09-30', volume: 50, topic: 'Cloud Infra', notes: 'AWS Migration' },
-  { id: 'p8', name: 'GenAI POC', client: 'BMW', color: 'purple', status: 'opportunity', budget: '45k', startDate: '2025-05-15', endDate: '2025-08-15', volume: 25, topic: 'AI/ML', notes: 'Innovation lab' },
-  { id: 'p9', name: 'Security Audit', client: 'Commerzbank', color: 'gray', status: 'opportunity', budget: '30k', startDate: '2025-03-01', endDate: '2025-03-31', volume: 15, topic: 'Security', notes: 'Regulatory requirement' },
-  { id: 'p10', name: 'E-Shop Relaunch', client: 'DM Tech', color: 'pink', status: 'opportunity', budget: '90k', startDate: '2025-08-01', endDate: '2025-12-31', volume: 40, topic: 'E-Commerce', notes: 'High visibility' },
-  { id: 'p11', name: 'HR Portal', client: 'Siemens', color: 'orange', status: 'opportunity', budget: '50k', startDate: '2025-06-01', endDate: '2025-09-30', volume: 30, topic: 'Internal', notes: '' },
-  { id: 'p12', name: 'Data Lake Pilot', client: 'Lufthansa', color: 'green', status: 'opportunity', budget: '75k', startDate: '2025-04-01', endDate: '2025-07-31', volume: 35, topic: 'Data', notes: '' },
-  // New Opportunities for Q1 2026
-  { id: 'p13', name: 'Smart City Dashboard', client: 'Hamburg', color: 'blue', status: 'opportunity', budget: '200k', startDate: '2026-01-15', endDate: '2026-09-30', volume: 80, topic: 'Public Sector', notes: '' },
-  { id: 'p14', name: 'FinTech App 2.0', client: 'N26', color: 'purple', status: 'opportunity', budget: '150k', startDate: '2026-02-01', endDate: '2026-08-31', volume: 70, topic: 'Finance', notes: '' },
+  // Opportunities
+  { id: 'p6', name: 'Rampe 160', client: 'Storck', color: 'gray', status: 'opportunity', budget: '150k', startDate: '2025-10-01', endDate: '2026-05-31', volume: 60, topic: 'Logistics', notes: 'Follow up to Shuttle', hourlyRate: 130 },
+  { id: 'p7', name: 'Cloud Migration Ph2', client: 'Allianz', color: 'blue', status: 'opportunity', budget: '120k', startDate: '2025-04-15', endDate: '2025-09-30', volume: 50, topic: 'Cloud Infra', notes: 'AWS Migration', hourlyRate: 140 },
+  { id: 'p8', name: 'GenAI POC', client: 'BMW', color: 'purple', status: 'opportunity', budget: '45k', startDate: '2025-05-15', endDate: '2025-08-15', volume: 25, topic: 'AI/ML', notes: 'Innovation lab', hourlyRate: 150 },
+  { id: 'p9', name: 'Security Audit', client: 'Commerzbank', color: 'gray', status: 'opportunity', budget: '30k', startDate: '2025-03-01', endDate: '2025-03-31', volume: 15, topic: 'Security', notes: 'Regulatory requirement', isCritical: true, hourlyRate: 160 },
+  { id: 'p10', name: 'E-Shop Relaunch', client: 'DM Tech', color: 'pink', status: 'opportunity', budget: '90k', startDate: '2025-08-01', endDate: '2025-12-31', volume: 40, topic: 'E-Commerce', notes: 'High visibility', hourlyRate: 120 },
+  { id: 'p11', name: 'HR Portal', client: 'Siemens', color: 'orange', status: 'opportunity', budget: '50k', startDate: '2025-06-01', endDate: '2025-09-30', volume: 30, topic: 'Internal', notes: '', hourlyRate: 115 },
+  { id: 'p12', name: 'Data Lake Pilot', client: 'Lufthansa', color: 'green', status: 'opportunity', budget: '75k', startDate: '2025-04-01', endDate: '2025-07-31', volume: 35, topic: 'Data', notes: '', hourlyRate: 135 },
+  { id: 'p13', name: 'Smart City Dashboard', client: 'Hamburg', color: 'blue', status: 'opportunity', budget: '200k', startDate: '2026-01-15', endDate: '2026-09-30', volume: 80, topic: 'Public Sector', notes: '', hourlyRate: 110 },
+  { id: 'p14', name: 'FinTech App 2.0', client: 'N26', color: 'purple', status: 'opportunity', budget: '150k', startDate: '2026-02-01', endDate: '2026-08-31', volume: 70, topic: 'Finance', notes: '', hourlyRate: 145 },
+];
+
+export const MOCK_CUSTOMERS: Customer[] = [
+    { id: 'c1', name: 'MAN', industry: 'Automotive', contactName: 'Hans Müller', email: 'hans.mueller@man.eu', logo: 'https://ui-avatars.com/api/?name=MAN&background=000&color=fff' },
+    { id: 'c2', name: 'IBs', industry: 'Internal', contactName: 'Nazar Kulyk', email: 'admin@ibs.com', logo: 'https://ui-avatars.com/api/?name=IBs&background=666&color=fff' },
+    { id: 'c3', name: 'Soka Bau', industry: 'Insurance', contactName: 'Petra Schmidt', email: 'p.schmidt@soka.de', logo: 'https://ui-avatars.com/api/?name=Soka&background=2E7D32&color=fff' },
+    { id: 'c4', name: 'Storck', industry: 'Food', contactName: 'Klaus Klein', email: 'klaus@storck.com', logo: 'https://ui-avatars.com/api/?name=Storck&background=C2185B&color=fff' },
+    { id: 'c5', name: 'Allianz', industry: 'Insurance', contactName: 'Maria Weber', email: 'm.weber@allianz.com', logo: 'https://ui-avatars.com/api/?name=Allianz&background=003399&color=fff' },
+    { id: 'c6', name: 'BMW', industry: 'Automotive', contactName: 'Thomas Ruf', email: 't.ruf@bmw.de', logo: 'https://ui-avatars.com/api/?name=BMW&background=0099cc&color=fff' },
+    { id: 'c7', name: 'Commerzbank', industry: 'Finance', contactName: 'Sarah Bank', email: 's.bank@commerz.de', logo: 'https://ui-avatars.com/api/?name=Coba&background=FFD700&color=000' },
+    { id: 'c8', name: 'DM Tech', industry: 'Retail', contactName: 'Lisa Tech', email: 'lisa@dm.de', logo: 'https://ui-avatars.com/api/?name=DM&background=purple&color=fff' },
+    { id: 'c9', name: 'Siemens', industry: 'Technology', contactName: 'Werner von Siemens', email: 'werner@siemens.com', logo: 'https://ui-avatars.com/api/?name=Siemens&background=009999&color=fff' },
+    { id: 'c10', name: 'Lufthansa', industry: 'Aviation', contactName: 'Pilot Pete', email: 'pete@lufthansa.com', logo: 'https://ui-avatars.com/api/?name=LH&background=000080&color=fff' },
+    { id: 'c11', name: 'Hamburg', industry: 'Public Sector', contactName: 'Olaf Scholz', email: 'olaf@hamburg.de', logo: 'https://ui-avatars.com/api/?name=HH&background=red&color=fff' },
+    { id: 'c12', name: 'N26', industry: 'FinTech', contactName: 'Valentin Stalf', email: 'val@n26.com', logo: 'https://ui-avatars.com/api/?name=N26&background=teal&color=fff' },
 ];
 
 export const MOCK_EMPLOYEES: Employee[] = [
@@ -41,7 +82,8 @@ export const MOCK_EMPLOYEES: Employee[] = [
     availability: 100,
     email: 'nazar@ibs.com',
     phone: '+49 123 456789',
-    notes: 'Key resource for architecture decisions.'
+    notes: 'Key resource for architecture decisions.',
+    location: 'DE'
   },
   { 
     id: 'e2', 
@@ -51,7 +93,8 @@ export const MOCK_EMPLOYEES: Employee[] = [
     skills: ['Kubernetes', 'Go', 'Python', 'AWS'],
     availability: 100,
     email: 'max@ibs.com',
-    notes: 'Prefer backend tasks.'
+    notes: 'Prefer backend tasks.',
+    location: 'DE'
   },
   { 
     id: 'e3', 
@@ -61,7 +104,8 @@ export const MOCK_EMPLOYEES: Employee[] = [
     skills: ['Figma', 'React', 'CSS', 'Accessibility'],
     availability: 80,
     email: 'dana@ibs.com',
-    notes: 'Part-time on Fridays.'
+    notes: 'Part-time on Fridays.',
+    location: 'DE'
   },
   { 
     id: 'e4', 
@@ -70,7 +114,8 @@ export const MOCK_EMPLOYEES: Employee[] = [
     avatar: 'https://ui-avatars.com/api/?name=Test+Freund&background=FFF3E0&color=EF6C00',
     skills: ['Jira', 'Selenium', 'User Stories'],
     availability: 100,
-    email: 'test@ibs.com'
+    email: 'test@ibs.com',
+    location: 'US'
   },
 ];
 
@@ -91,32 +136,51 @@ const generateSokaBauAssignments = (): Assignment[] => {
     const dateStr = format(d, 'yyyy-MM-dd');
 
     // Max (e2) & Dana (e3): Full (Mon-Fri) on ÜBA 2.0 (p3)
-    assignments.push({ id: `auto-e2-${dateStr}`, employeeId: 'e2', projectId: 'p3', date: dateStr });
-    assignments.push({ id: `auto-e3-${dateStr}`, employeeId: 'e3', projectId: 'p3', date: dateStr });
+    assignments.push({ id: `auto-e2-${dateStr}`, employeeId: 'e2', projectId: 'p3', date: dateStr, allocation: 1 });
+    assignments.push({ id: `auto-e3-${dateStr}`, employeeId: 'e3', projectId: 'p3', date: dateStr, allocation: 1 });
 
     // Nazar (e1): 75% Target Capacity
-    // Logic: 4 days (Mon-Thu) is 80%. To average 75%, we work 3 days (Mon-Wed) every 4th week.
-    // (4+4+4+3)/20 days = 15/20 = 75%.
     const isShortWeek = weekNum % 4 === 0;
-    const workDays = isShortWeek ? 3 : 4; // Mon-Wed (3) or Mon-Thu (4)
+    const workDays = isShortWeek ? 3 : 4; 
     
     if (day >= 1 && day <= workDays) {
-      assignments.push({ id: `auto-e1-${dateStr}`, employeeId: 'e1', projectId: 'p3', date: dateStr });
+      assignments.push({ id: `auto-e1-${dateStr}`, employeeId: 'e1', projectId: 'p3', date: dateStr, allocation: 1 });
     }
   });
   return assignments;
 }
 
-// --- FUTURE QUARTER MOCKS ---
+// MOCK ABSENCES
+const MOCK_ABSENCES: Absence[] = [
+    { id: 'abs1', employeeId: 'e1', date: '2025-10-20', type: 'vacation', approved: true },
+    { id: 'abs2', employeeId: 'e1', date: '2025-10-21', type: 'vacation', approved: true },
+    { id: 'abs3', employeeId: 'e3', date: '2025-11-14', type: 'sick', approved: true },
+];
 
-// Outlook for V1 (Initial Plan): Rampe 160 is still an Opportunity
+// MOCK PUBLIC HOLIDAYS (DE - Germany for 2025/2026 sample)
+export const MOCK_HOLIDAYS: PublicHoliday[] = [
+    { date: '2025-01-01', name: 'Neujahr', location: 'DE' },
+    { date: '2025-04-18', name: 'Karfreitag', location: 'DE' },
+    { date: '2025-04-21', name: 'Ostermontag', location: 'DE' },
+    { date: '2025-05-01', name: 'Tag der Arbeit', location: 'DE' },
+    { date: '2025-05-29', name: 'Christi Himmelfahrt', location: 'DE' },
+    { date: '2025-06-09', name: 'Pfingstmontag', location: 'DE' },
+    { date: '2025-10-03', name: 'Tag der Deutschen Einheit', location: 'DE' },
+    { date: '2025-12-25', name: '1. Weihnachtstag', location: 'DE' },
+    { date: '2025-12-26', name: '2. Weihnachtstag', location: 'DE' },
+    { date: '2026-01-01', name: 'Neujahr', location: 'DE' },
+    { date: '2026-04-03', name: 'Karfreitag', location: 'DE' },
+    { date: '2026-04-06', name: 'Ostermontag', location: 'DE' },
+];
+
+// --- Quarter Data (Truncated for brevity, logic remains same) ---
 const Q1_2026_OUTLOOK_V1: QuarterData = {
     id: 'q1-2026-outlook-v1',
     name: 'Q1 2026',
     months: ['Jan', 'Feb', 'Mar'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p3'), getP('p5')], // UBA, Shuttle
-    mustWinOpportunities: [getP('p6'), getP('p13')], // Rampe(Opp), Smart City
+    runningProjects: [getP('p3'), getP('p5')],
+    mustWinOpportunities: [getP('p6'), getP('p13')],
     alternativeOpportunities: [],
     notes: 'Outlook: Need to close Rampe 160 to fill capacity in Q1.'
 };
@@ -126,20 +190,19 @@ const Q2_2026_OUTLOOK_V1: QuarterData = {
     name: 'Q2 2026',
     months: ['Apr', 'May', 'Jun'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p5')], // Shuttle
+    runningProjects: [getP('p5')],
     mustWinOpportunities: [getP('p6'), getP('p13')],
     alternativeOpportunities: [],
     notes: 'Long term outlook: Pipeline building needed.'
 };
 
-// Outlook for V2 (Adjusted Plan): Rampe 160 is Won (Active)
 const Q1_2026_OUTLOOK_V2: QuarterData = {
     id: 'q1-2026-outlook-v2',
     name: 'Q1 2026',
     months: ['Jan', 'Feb', 'Mar'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p3'), getP('p5'), getP('p6')], // UBA, Shuttle, Rampe(Won)
-    mustWinOpportunities: [getP('p13')], // Smart City
+    runningProjects: [getP('p3'), getP('p5'), getP('p6')],
+    mustWinOpportunities: [getP('p13')],
     alternativeOpportunities: [],
     notes: 'Outlook: Strong start with Rampe secured. Focus on Smart City.'
 };
@@ -149,69 +212,56 @@ const Q2_2026_OUTLOOK_V2: QuarterData = {
     name: 'Q2 2026',
     months: ['Apr', 'May', 'Jun'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p5'), getP('p6')], // Shuttle, Rampe
+    runningProjects: [getP('p5'), getP('p6')],
     mustWinOpportunities: [getP('p13')],
     alternativeOpportunities: [],
     notes: 'Stable utilization expected mid-year.'
 };
 
-// Outlook for V3 (Q1 Plan): Look ahead to Q2 & Q3
 const Q2_2026_FUTURE: QuarterData = {
     id: 'q2-2026-future',
     name: 'Q2 2026',
     months: ['Apr', 'May', 'Jun'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [], // Cleared to show severe under-planning
-    mustWinOpportunities: [getP('p13')], // Only Smart City Dashboard
+    runningProjects: [],
+    mustWinOpportunities: [getP('p13')],
     alternativeOpportunities: [],
     notes: 'CRITICAL: Severe capacity under-utilization projected. Sales pipeline dry after Smart City.'
 };
 
-const Q3_2026_FUTURE: QuarterData = {
-    id: 'q3-2026-future',
-    name: 'Q3 2026',
-    months: ['Jul', 'Aug', 'Sep'],
-    totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p6'), getP('p13')], // Rampe, Smart City (assumed won)
-    mustWinOpportunities: [],
-    alternativeOpportunities: [],
-    notes: 'Summer period planning.'
-};
-
-
-// --- Version 1: Initial Q4 2025 Plan ---
+// --- Version 1 ---
 const FORECAST_Q4_2025_INITIAL: QuarterData[] = [
   {
     id: 'q4-2025-init',
     name: 'Q4 2025',
     months: ['Oct', 'Nov', 'Dec'],
-    totalCapacity: [80, 80, 60], // Dec lower due to holidays
-    runningProjects: [getP('p2'), getP('p5'), getP('p3')], // Internal App, Shuttle, UBA
-    mustWinOpportunities: [getP('p6')], // Rampe 160
-    alternativeOpportunities: [getP('p10')], // E-Shop
+    totalCapacity: [80, 80, 60],
+    runningProjects: [getP('p2'), getP('p5'), getP('p3')],
+    mustWinOpportunities: [getP('p6')],
+    alternativeOpportunities: [getP('p10')],
     notes: 'Initial plan. Rampe 160 is critical for utilization.'
   },
   Q1_2026_OUTLOOK_V1,
   Q2_2026_OUTLOOK_V1
 ];
 const ASSIGNMENTS_Q4_2025_INITIAL: Assignment[] = [
-    { id: 'a1', employeeId: 'e1', projectId: 'p5', date: '2025-10-06' },
-    { id: 'a2', employeeId: 'e1', projectId: 'p5', date: '2025-10-07' },
-    { id: 'a3', employeeId: 'e2', projectId: 'p3', date: '2025-10-06' },
-    { id: 'a4', employeeId: 'e3', projectId: 'p2', date: '2025-10-08' },
-    ...generateSokaBauAssignments() // Inject generated Soka Bau assignments for Nov/Dec
+    { id: 'a1', employeeId: 'e1', projectId: 'p5', date: '2025-10-06', allocation: 1 },
+    { id: 'a2', employeeId: 'e1', projectId: 'p5', date: '2025-10-07', allocation: 1 },
+    { id: 'a3', employeeId: 'e2', projectId: 'p3', date: '2025-10-06', allocation: 1 },
+    { id: 'a4', employeeId: 'e3', projectId: 'p2', date: '2025-10-08', allocation: 1 },
+    ...generateSokaBauAssignments()
 ];
 
-// --- Version 2: Adjusted Q4 2025 Plan (After Call) ---
+// --- Version 2 ---
 const FORECAST_Q4_2025_ADJUSTED: QuarterData[] = [
   {
     id: 'q4-2025-adj',
     name: 'Q4 2025',
     months: ['Oct', 'Nov', 'Dec'],
     totalCapacity: [80, 80, 60],
-    runningProjects: [getP('p2'), getP('p5'), getP('p3'), getP('p6')], // Rampe 160 moved to Running!
-    mustWinOpportunities: [], // Cleared
-    alternativeOpportunities: [getP('p10'), getP('p9')], // Added Security Audit as backup
+    runningProjects: [getP('p2'), getP('p5'), getP('p3'), getP('p6')],
+    mustWinOpportunities: [],
+    alternativeOpportunities: [getP('p10'), getP('p9')],
     notes: 'ADJUSTED: Rampe 160 won! Moved to active. Capacity is healthy (+20d reserve).'
   },
   Q1_2026_OUTLOOK_V2,
@@ -219,40 +269,41 @@ const FORECAST_Q4_2025_ADJUSTED: QuarterData[] = [
 ];
 const ASSIGNMENTS_Q4_2025_ADJUSTED: Assignment[] = [
     ...ASSIGNMENTS_Q4_2025_INITIAL,
-    { id: 'a5', employeeId: 'e1', projectId: 'p6', date: '2025-10-15' }, // Working on Rampe
-    { id: 'a6', employeeId: 'e2', projectId: 'p6', date: '2025-10-15' },
-    { id: 'a7', employeeId: 'e4', projectId: 'p6', date: '2025-10-16' },
+    { id: 'a5', employeeId: 'e1', projectId: 'p6', date: '2025-10-15', allocation: 0.5 }, // Partial day example
+    { id: 'a5b', employeeId: 'e1', projectId: 'p5', date: '2025-10-15', allocation: 0.5 }, // Partial day example
+    { id: 'a6', employeeId: 'e2', projectId: 'p6', date: '2025-10-15', allocation: 1 },
+    { id: 'a7', employeeId: 'e4', projectId: 'p6', date: '2025-10-16', allocation: 1 },
 ];
 
-// --- Version 3: Preparing Q1 2026 Plan (Updated to include Q4 2025 as current) ---
+// --- Version 3 ---
 const FORECAST_Q1_2026: QuarterData[] = [
-  FORECAST_Q4_2025_ADJUSTED[0], // Include Q4 2025 (Adjusted) as the current quarter
+  FORECAST_Q4_2025_ADJUSTED[0],
   {
     id: 'q1-2026',
     name: 'Q1 2026',
     months: ['Jan', 'Feb', 'Mar'],
     totalCapacity: [80, 80, 80],
-    runningProjects: [getP('p3'), getP('p5'), getP('p6')], // UBA, Shuttle, Rampe continue
-    mustWinOpportunities: [getP('p13')], // Smart City
-    alternativeOpportunities: [getP('p14')], // FinTech
+    runningProjects: [getP('p3'), getP('p5'), getP('p6')],
+    mustWinOpportunities: [getP('p13')],
+    alternativeOpportunities: [getP('p14')],
     notes: 'Planning for Q1. Focus on Smart City Dashboard acquisition.'
   },
   Q2_2026_FUTURE,
 ];
 const ASSIGNMENTS_Q1_2026: Assignment[] = [
-    ...ASSIGNMENTS_Q4_2025_ADJUSTED, // Include previous assignments for continuity
-    { id: 'b1', employeeId: 'e1', projectId: 'p6', date: '2026-01-12' },
-    { id: 'b2', employeeId: 'e2', projectId: 'p3', date: '2026-01-13' },
-    { id: 'b3', employeeId: 'e3', projectId: 'p5', date: '2026-01-14' },
+    ...ASSIGNMENTS_Q4_2025_ADJUSTED,
+    { id: 'b1', employeeId: 'e1', projectId: 'p6', date: '2026-01-12', allocation: 1 },
+    { id: 'b2', employeeId: 'e2', projectId: 'p3', date: '2026-01-13', allocation: 1 },
+    { id: 'b3', employeeId: 'e3', projectId: 'p5', date: '2026-01-14', allocation: 1 },
 ];
 
-// Define the 3 requested versions
 export const MOCK_VERSIONS: PlanVersion[] = [
   {
     id: 'v1',
     name: 'Initial Q4 2025 Plan',
     createdAt: '2025-09-15T10:00:00Z',
     assignments: ASSIGNMENTS_Q4_2025_INITIAL,
+    absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q4_2025_INITIAL
   },
   {
@@ -260,6 +311,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     name: 'Adjusted Q4 2025 Plan after QFC Call',
     createdAt: '2025-09-20T14:30:00Z',
     assignments: ASSIGNMENTS_Q4_2025_ADJUSTED,
+    absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q4_2025_ADJUSTED
   },
   {
@@ -267,6 +319,7 @@ export const MOCK_VERSIONS: PlanVersion[] = [
     name: 'Preparing Q1 2026 Plan',
     createdAt: '2025-11-05T09:15:00Z',
     assignments: ASSIGNMENTS_Q1_2026,
+    absences: MOCK_ABSENCES,
     forecastData: FORECAST_Q1_2026
   }
 ];

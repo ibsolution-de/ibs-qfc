@@ -1,29 +1,289 @@
-import React, { useState } from 'react';
-import { QuarterData, Project } from '../types';
-import { PASTEL_VARIANTS } from '../constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { QuarterData, Project, Assignment, Employee, Absence } from '../types';
+import { PASTEL_VARIANTS, MOCK_HOLIDAYS } from '../constants';
 import { Badge } from './ui/Badge';
-import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, Presentation, FilePlus, Trash2, Plus, X, Check, Lock } from 'lucide-react';
+import { ArrowRight, TrendingUp, AlertCircle, Calculator, Briefcase, Target, GitBranch, Presentation, FilePlus, Trash2, Plus, X, Check, Lock, Sparkles, BrainCircuit, Folder, Terminal, Copy, Cpu, ShieldAlert, CheckSquare, Activity, Zap, Radio, ChevronRight, Settings, CornerLeftDown } from 'lucide-react';
 import { Button } from './ui/Button';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useSettings } from '../contexts/SettingsContext';
+import { generateForecastAnalysis } from '../services/ai';
+import { Modal } from './ui/Modal';
+import { AsciiSpinner } from './ui/AsciiSpinner';
+import { format, eachDayOfInterval, endOfMonth, isWeekend } from 'date-fns';
 
 interface QuarterlyForecastProps {
   data: QuarterData[];
   allProjects: Project[]; // To select from
+  assignments: Assignment[];
+  employees: Employee[];
+  absences: Absence[];
   onUpdateForecast?: (quarterId: string, type: 'mustWin' | 'alternative', projects: Project[]) => void;
   readOnly?: boolean;
 }
 
-export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allProjects, onUpdateForecast, readOnly = false }) => {
-  const { t, formatDate } = useLanguage();
+// --- Sci-Fi UI Helpers ---
+
+const FormatText: React.FC<{ text: string }> = ({ text }) => {
+  if (!text) return null;
+  // Split by bold markers **...**
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return (
+    <span>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <span key={i} className="font-bold text-blue-300">{part.slice(2, -2)}</span>;
+        }
+        return <span key={i}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
+const ParsedResultDisplay: React.FC<{ rawText: string }> = ({ rawText }) => {
+    // Parser Logic
+    const parsedData = useMemo(() => {
+        const sections: { type: 'header' | 'status' | 'risk' | 'action' | 'text', title?: string, content: string, items?: string[], percentage?: string | null }[] = [];
+        
+        const lines = rawText.split('\n').filter(line => line.trim() !== '');
+        
+        let currentSection: any = null;
+
+        lines.forEach(line => {
+            const lower = line.toLowerCase();
+            
+            // Heuristic Detection
+            if (line.trim().startsWith('**') && lower.includes('zusammenfassung') || lower.includes('summary')) {
+                if (currentSection) sections.push(currentSection);
+                currentSection = { type: 'header', content: line.replace(/\*\*/g, '') };
+            } else if (lower.includes('status:') || lower.includes('kapazitätsstatus') || (lower.includes('status') && line.includes('**'))) {
+                if (currentSection) sections.push(currentSection);
+                // Extract percentage if present
+                const percentMatch = line.match(/(\d+)%/);
+                const percentage = percentMatch ? percentMatch[1] : null;
+                currentSection = { type: 'status', title: 'SYSTEM STATUS', content: line, percentage };
+            } else if (lower.includes('risiko') || lower.includes('risk') || lower.includes('lücken') || lower.includes('gaps')) {
+                if (currentSection) sections.push(currentSection);
+                currentSection = { type: 'risk', title: 'THREAT ASSESSMENT', content: '' };
+            } else if (lower.includes('empfehlungen') || lower.includes('recommendations') || lower.includes('handlung')) {
+                if (currentSection) sections.push(currentSection);
+                currentSection = { type: 'action', title: 'TACTICAL DIRECTIVES', content: '', items: [] };
+            } else if (line.match(/^\d+\./)) {
+                // Numbered list item
+                if (currentSection && currentSection.type === 'action') {
+                    currentSection.items.push(line.replace(/^\d+\.\s*/, ''));
+                } else {
+                     if (currentSection) currentSection.content += '\n' + line;
+                }
+            } else {
+                if (currentSection) {
+                    // Append to current section content, unless it's a new "block" appearing line
+                    if(currentSection.type === 'risk' && line.trim().startsWith('**')) {
+                         // Treat bold lines inside risk as sub-headers or strong points, just append
+                         currentSection.content += '\n' + line;
+                    } else {
+                         currentSection.content += (currentSection.content ? '\n' : '') + line;
+                    }
+                } else {
+                    currentSection = { type: 'text', content: line };
+                }
+            }
+        });
+        if (currentSection) sections.push(currentSection);
+        
+        return sections;
+    }, [rawText]);
+
+    return (
+        <div className="flex flex-col gap-6 font-mono text-sm relative p-2">
+            {/* Light Tech Overlay Effect */}
+            <div className="absolute inset-0 pointer-events-none z-0 opacity-10 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:20px_20px]"></div>
+
+            {parsedData.map((section, idx) => {
+                const delay = { animationDelay: `${idx * 150}ms` };
+                
+                if (section.type === 'header') {
+                    return (
+                        <div key={idx} className="border-b border-charcoal-700 pb-2 mb-2 animate-fade-in-up" style={delay}>
+                            <h3 className="text-blue-400 font-bold tracking-widest uppercase flex items-center gap-2 text-base">
+                                <Activity className="w-5 h-5 animate-pulse text-blue-500" />
+                                {section.content}
+                            </h3>
+                        </div>
+                    );
+                }
+
+                if (section.type === 'status') {
+                    return (
+                        <div key={idx} className="bg-charcoal-800/80 border border-blue-500/30 rounded-lg p-5 relative overflow-hidden group animate-slide-in-right shadow-sm" style={delay}>
+                            <div className="absolute top-0 right-0 p-3 opacity-5 group-hover:opacity-10 transition-opacity">
+                                <Cpu className="w-24 h-24 text-blue-400" />
+                            </div>
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+                            <div className="flex items-start gap-5 relative z-10">
+                                {section.percentage && (
+                                    <div className="flex-shrink-0">
+                                        <div className="w-20 h-20 rounded-full border-4 border-charcoal-700 flex items-center justify-center bg-charcoal-800 relative">
+                                            <div className="absolute inset-0 border-t-4 border-blue-500 rounded-full animate-spin duration-3000"></div>
+                                            <span className="text-2xl font-bold text-blue-400">{section.percentage}%</span>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                        <div className="text-xs text-blue-400 uppercase tracking-widest font-bold">{section.title}</div>
+                                    </div>
+                                    <div className="text-gray-300 leading-relaxed text-sm">
+                                        <FormatText text={section.content} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (section.type === 'risk') {
+                    return (
+                        <div key={idx} className="relative animate-fade-in-up" style={delay}>
+                            <div className="absolute -left-1 top-0 bottom-0 w-1 bg-gradient-to-b from-red-500 via-red-400 to-transparent"></div>
+                            <div className="bg-red-900/10 border border-red-900/30 p-4 rounded-r-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <ShieldAlert className="w-4 h-4 text-red-400 animate-pulse" />
+                                    <span className="text-xs text-red-400 uppercase tracking-widest font-bold">{section.title}</span>
+                                </div>
+                                <div className="text-gray-300 text-sm leading-relaxed pl-1">
+                                    <FormatText text={section.content} />
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                if (section.type === 'action') {
+                    return (
+                        <div key={idx} className="mt-4 animate-fade-in-up" style={delay}>
+                            <div className="flex items-center gap-2 mb-4 border-b border-yellow-800/50 pb-1">
+                                <Zap className="w-4 h-4 text-yellow-500" />
+                                <span className="text-xs text-yellow-500 uppercase tracking-widest font-bold">{section.title}</span>
+                            </div>
+                            <div className="space-y-3">
+                                {section.items?.map((item, i) => (
+                                    <div key={i} className="flex gap-4 bg-charcoal-800 p-3 rounded-md border-l-2 border-l-yellow-600 border-y border-r border-charcoal-700 hover:border-yellow-600/50 transition-all hover:translate-x-1 group shadow-sm">
+                                        <div className="flex flex-col items-center gap-1 min-w-[2rem]">
+                                            <span className="text-[10px] text-charcoal-500 font-bold uppercase">CMD</span>
+                                            <span className="text-lg font-bold text-yellow-500 font-mono">0{i + 1}</span>
+                                        </div>
+                                        <div className="text-gray-300 text-sm leading-relaxed flex-1 pt-1">
+                                            <FormatText text={item} />
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 text-charcoal-600 group-hover:text-yellow-500 self-center" />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div key={idx} className="text-gray-400 text-sm animate-fade-in pl-2 border-l border-charcoal-700" style={delay}>
+                        <FormatText text={section.content} />
+                    </div>
+                );
+            })}
+        </div>
+    );
+};
+
+export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ 
+  data, 
+  allProjects, 
+  assignments, 
+  employees, 
+  absences,
+  onUpdateForecast, 
+  readOnly = false 
+}) => {
+  const { t, formatDate, language } = useLanguage();
+  const { apiKey, isAiEnabled, openSettings } = useSettings();
   const [addingTo, setAddingTo] = useState<{ qId: string, type: 'mustWin' | 'alternative' } | null>(null);
+  
+  // AI State
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+
+  // Dynamic Calculation of Real Data
+  const getRealQuarterData = (quarter: QuarterData): QuarterData => {
+    // Heuristic to parse QX YYYY from name
+    const parts = quarter.name.split(' ');
+    if (parts.length < 2 || !parts[0].startsWith('Q')) return quarter;
+    
+    const qIndex = parseInt(parts[0].replace('Q', '')) - 1;
+    const year = parseInt(parts[1]);
+    if (isNaN(qIndex) || isNaN(year)) return quarter;
+    
+    const startMonth = qIndex * 3;
+    const qStart = new Date(year, startMonth, 1);
+    const qEnd = endOfMonth(new Date(year, startMonth + 2, 1));
+    const qStartStr = format(qStart, 'yyyy-MM-dd');
+    const qEndStr = format(qEnd, 'yyyy-MM-dd');
+
+    // 1. Calculate Monthly Capacity based on employees
+    const newTotalCapacity = [0, 0, 0];
+    for(let i=0; i<3; i++) {
+        const mStart = new Date(year, startMonth + i, 1);
+        const mEnd = endOfMonth(mStart);
+        const days = eachDayOfInterval({ start: mStart, end: mEnd });
+        
+        let cap = 0;
+        employees.forEach(emp => {
+             const empHolidays = MOCK_HOLIDAYS.filter(h => h.location === 'ALL' || h.location === emp.location);
+             const empAbsences = absences.filter(a => a.employeeId === emp.id);
+
+             days.forEach(d => {
+                 if(isWeekend(d)) return;
+                 const dStr = format(d, 'yyyy-MM-dd');
+                 if(empHolidays.some(h => h.date === dStr)) return;
+                 if(empAbsences.some(a => a.date === dStr)) return;
+                 
+                 cap += (emp.availability / 100);
+             });
+        });
+        newTotalCapacity[i] = Math.round(cap);
+    }
+
+    // 2. Calculate Running Projects from Assignments
+    const relevantAssignments = assignments.filter(a => a.date >= qStartStr && a.date <= qEndStr);
+    const projMap = new Map<string, number>();
+    relevantAssignments.forEach(a => {
+         const val = a.allocation || 1;
+         projMap.set(a.projectId, (projMap.get(a.projectId) || 0) + val);
+    });
+    
+    const runningProjects = Array.from(projMap.entries()).map(([pid, volume]) => {
+         const p = allProjects.find(px => px.id === pid);
+         if(!p) return null;
+         return { ...p, volume: Math.round(volume * 10) / 10 };
+    }).filter(Boolean) as Project[];
+
+    return {
+        ...quarter,
+        totalCapacity: newTotalCapacity,
+        runningProjects: runningProjects
+    };
+  };
 
   const calculateCapacity = (q: QuarterData) => {
     const totalCap = q.totalCapacity.reduce((a, b) => a + b, 0);
     const assignedDays = q.runningProjects.reduce((acc, p) => acc + (p.volume || 60), 0);
-    const availableAfterRunning = totalCap - assignedDays;
+    
+    const rawAvailable = totalCap - assignedDays;
+    // Ensure Available is non-negative for display
+    const availableAfterRunning = Math.max(0, rawAvailable);
     
     const opportunityDays = q.mustWinOpportunities.reduce((acc, p) => acc + (p.volume || 0), 0);
-    const finalAvailable = availableAfterRunning - opportunityDays;
+    // Final/Net capacity uses raw values to reflect true over/under capacity
+    const finalAvailable = rawAvailable - opportunityDays;
 
     return { totalCap, assignedDays, availableAfterRunning, opportunityDays, finalAvailable };
   };
@@ -37,8 +297,9 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
           const assigned = Math.round(metrics.assignedDays * ratio);
           const opportunities = Math.round(metrics.opportunityDays * ratio);
           
-          const available = total - assigned;
-          const optimistic = available - opportunities;
+          const rawAvailable = total - assigned;
+          const available = Math.max(0, rawAvailable); // Display as 0 if negative
+          const optimistic = rawAvailable - opportunities; // Keep true net value
           
           return { month, total, available, optimistic };
       });
@@ -46,6 +307,29 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
 
   const handleExportPPT = () => {
     alert(t('forecast.generatingPPT'));
+  };
+  
+  const handleAIAnalysis = async () => {
+    // Always open modal, regardless of setting status to show motivation if needed
+    setIsAnalysisModalOpen(true);
+
+    if (!isAiEnabled || !apiKey) {
+      return;
+    }
+
+    setAnalyzing(true);
+    setAnalysisResult(null);
+    
+    try {
+        // Analyze the first quarter (most relevant), calculating real metrics first
+        const realData = getRealQuarterData(data[0]);
+        const result = await generateForecastAnalysis(realData, apiKey, language);
+        setAnalysisResult(result);
+    } catch (error) {
+        setAnalysisResult(t('forecast.analysisError'));
+    } finally {
+        setAnalyzing(false);
+    }
   };
 
   const handleRequestSAP = (project: Project, e: React.MouseEvent) => {
@@ -110,24 +394,31 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                 </div>
                 <p className="text-charcoal-500 mt-1">{t('forecast.subtitle')}</p>
             </div>
-            <Button onClick={handleExportPPT} className="gap-2 shadow-sm">
-                <Presentation className="w-4 h-4" />
-                {t('forecast.exportPPT')}
-            </Button>
+            <div className="flex gap-3">
+                <Button onClick={handleAIAnalysis} variant="secondary" className="gap-2 shadow-sm border border-charcoal-200 text-blue-700 bg-white hover:bg-blue-50 transition-all hover:scale-105">
+                    <Sparkles className="w-4 h-4" />
+                    {t('forecast.aiAnalysis')}
+                </Button>
+                <Button onClick={handleExportPPT} className="gap-2 shadow-sm">
+                    <Presentation className="w-4 h-4" />
+                    {t('forecast.exportPPT')}
+                </Button>
+            </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {data.map((quarter, index) => {
-            const metrics = calculateCapacity(quarter);
+            const computedQuarter = getRealQuarterData(quarter);
+            const metrics = calculateCapacity(computedQuarter);
             const isCurrent = index === 0;
-            const monthlyData = getMonthlyBreakdown(quarter, metrics);
+            const monthlyData = getMonthlyBreakdown(computedQuarter, metrics);
             const isAddingMustWin = addingTo?.qId === quarter.id && addingTo?.type === 'mustWin';
             const isAddingAlt = addingTo?.qId === quarter.id && addingTo?.type === 'alternative';
 
             const currentIds = [
-                ...quarter.runningProjects, 
-                ...quarter.mustWinOpportunities, 
-                ...quarter.alternativeOpportunities
+                ...computedQuarter.runningProjects, 
+                ...computedQuarter.mustWinOpportunities, 
+                ...computedQuarter.alternativeOpportunities
             ].map(p => p.id);
             
             const availableProjects = allProjects.filter(p => p.status === 'opportunity' && !currentIds.includes(p.id));
@@ -135,7 +426,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
             return (
               <div 
                 key={quarter.id} 
-                className={`flex flex-col bg-white rounded-xl border ${isCurrent ? 'border-charcoal-300 shadow-lg ring-1 ring-charcoal-200' : 'border-charcoal-200 shadow-sm'}`}
+                className={`flex flex-col bg-white rounded-xl border ${isCurrent ? 'border-charcoal-300 shadow-lg ring-1 ring-charcoal-200' : 'border-charcoal-200 shadow-sm'} transition-all duration-300 hover:shadow-xl hover:-translate-y-1`}
               >
                 {/* Header */}
                 <div className="p-5 border-b border-charcoal-100 bg-charcoal-50/30 rounded-t-xl">
@@ -215,10 +506,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                   <div>
                     <h3 className="text-xs font-semibold text-charcoal-400 uppercase tracking-wider mb-3">{t('forecast.runningProjects')}</h3>
                     <div className="space-y-2">
-                        {quarter.runningProjects.length > 0 ? quarter.runningProjects.map(p => (
+                        {computedQuarter.runningProjects.length > 0 ? computedQuarter.runningProjects.map(p => (
                             <div key={p.id} className="group flex items-center justify-between p-2 rounded-md hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
                                 <div className="flex items-center gap-3 overflow-hidden">
-                                    <Briefcase className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
+                                    <Folder className={`w-4 h-4 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
                                     <div className="truncate">
                                         <div className="text-sm font-medium text-charcoal-800 truncate">{p.name}</div>
                                         <div className="text-xs text-charcoal-500 truncate">{p.client}</div>
@@ -227,7 +518,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                                 <div className="flex items-center gap-2">
                                     <div className="flex flex-col items-end">
                                         <div className="text-[10px] text-charcoal-500 font-medium">
-                                            {p.startDate ? formatDate(new Date(p.startDate), 'MMM d, yyyy') : ''}
+                                            {p.volume}d
                                         </div>
                                         <div className="text-xs font-mono text-charcoal-400 whitespace-nowrap">
                                             {p.budget && p.budget !== '0' ? p.budget : 'T&M'}
@@ -328,7 +619,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                                                 onClick={() => handleAddProject(quarter.id, 'mustWin', quarter.mustWinOpportunities, p)}
                                                 className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded hover:bg-orange-50 group"
                                             >
-                                                <span className="text-xs text-charcoal-700 font-medium group-hover:text-orange-700">{p.name}</span>
+                                                <span className="flex items-center gap-2">
+                                                    <Folder className={`w-3 h-3 ${PASTEL_VARIANTS[p.color].text}`} />
+                                                    <span className="text-xs text-charcoal-700 font-medium group-hover:text-orange-700">{p.name}</span>
+                                                </span>
                                                 <span className="text-[10px] text-charcoal-400">{p.client}</span>
                                             </button>
                                         )) : (
@@ -352,7 +646,7 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                             <div key={p.id} className="group p-3 rounded-lg border border-blue-100 bg-blue-50/30 hover:border-blue-200 transition-colors relative">
                                 <div className="flex justify-between items-start">
                                     <div className="flex items-start gap-2.5 flex-1 min-w-0 pr-2">
-                                        <div className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${PASTEL_VARIANTS[p.color].bg} border ${PASTEL_VARIANTS[p.color].border}`} />
+                                        <Folder className={`w-4 h-4 mt-0.5 flex-shrink-0 ${PASTEL_VARIANTS[p.color].text}`} />
                                         <div className="min-w-0">
                                             <div className="text-sm font-medium text-charcoal-800 truncate">{p.name}</div>
                                             <div className="text-xs text-charcoal-500">{p.client}</div>
@@ -421,7 +715,10 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
                                                 onClick={() => handleAddProject(quarter.id, 'alternative', quarter.alternativeOpportunities, p)}
                                                 className="w-full text-left flex items-center justify-between px-2 py-1.5 rounded hover:bg-blue-50 group"
                                             >
-                                                <span className="text-xs text-charcoal-700 font-medium group-hover:text-blue-700">{p.name}</span>
+                                                <span className="flex items-center gap-2">
+                                                    <Folder className={`w-3 h-3 ${PASTEL_VARIANTS[p.color].text}`} />
+                                                    <span className="text-xs text-charcoal-700 font-medium group-hover:text-blue-700">{p.name}</span>
+                                                </span>
                                                 <span className="text-[10px] text-charcoal-400">{p.client}</span>
                                             </button>
                                         )) : (
@@ -461,6 +758,120 @@ export const QuarterlyForecast: React.FC<QuarterlyForecastProps> = ({ data, allP
           })}
         </div>
       </div>
+      
+      {/* AI Analysis Modal - Dark Mode */}
+      <Modal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} title={(!isAiEnabled || !apiKey) ? t('forecast.aiSetupTitle') : t('forecast.analysisTitle')} size="lg" variant="dark">
+         <div className="p-2">
+            {(!isAiEnabled || !apiKey) ? (
+                 <div className="flex flex-col items-center justify-center py-8 text-center space-y-6 max-w-md mx-auto animate-fade-in-up">
+                     <div className="w-20 h-20 bg-charcoal-800 rounded-full flex items-center justify-center mb-2 shadow-sm border border-charcoal-700">
+                         <BrainCircuit className="w-10 h-10 text-blue-500" />
+                     </div>
+                     
+                     <div>
+                        <h3 className="text-xl font-bold text-white mb-3">{t('forecast.aiSetupTitle')}</h3>
+                        <p className="text-gray-400 text-sm leading-relaxed px-4">
+                            {t('forecast.aiSetupBody')}
+                        </p>
+                     </div>
+        
+                     <div className="bg-charcoal-800/50 border border-charcoal-700 rounded-xl p-5 text-left w-full shadow-sm mb-2">
+                        <div className="flex gap-4">
+                            <div className="mt-1 bg-charcoal-900 p-1.5 rounded-lg border border-charcoal-700 h-fit shadow-sm"><Lock className="w-4 h-4 text-blue-500" /></div>
+                            <div className="text-sm text-gray-300">
+                                <div className="font-bold text-white mb-1">{t('forecast.aiPrivacyTitle')}</div> 
+                                <div className="text-xs leading-relaxed text-gray-400">{t('forecast.aiPrivacyBody')}</div>
+                            </div>
+                        </div>
+                     </div>
+        
+                     <div className="w-full flex flex-col items-center gap-4">
+                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <CornerLeftDown className="w-4 h-4 text-gray-600" />
+                            <span>{t('forecast.openSettingsInstruction')}</span>
+                        </div>
+                        
+                        <Button 
+                            onClick={() => {
+                                setIsAnalysisModalOpen(false);
+                                openSettings();
+                            }} 
+                            className="w-full gap-2 justify-center bg-blue-600 hover:bg-blue-700 text-white border-none"
+                        >
+                            <Settings className="w-4 h-4" />
+                            {t('forecast.configureSettings')}
+                        </Button>
+                     </div>
+                 </div>
+            ) : analyzing ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+                    {/* BrainCircuit Icon */}
+                    <div className="mb-2 relative group">
+                        <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full animate-pulse"></div>
+                        <BrainCircuit className="w-16 h-16 text-blue-400 relative z-10 animate-pulse-subtle" />
+                    </div>
+
+                    <div>
+                        <p className="text-white font-semibold text-lg tracking-tight flex items-center justify-center gap-2">
+                            {t('forecast.generatingAnalysis')}
+                            <span className="animate-pulse">_</span>
+                        </p>
+                        <p className="text-xs text-gray-500 font-mono mt-1">Processing via Gemini 3 Pro</p>
+                    </div>
+                    
+                    {/* Scanning Line Animation */}
+                    <div className="w-48 h-1 bg-charcoal-700 rounded-full overflow-hidden mt-4 relative">
+                        <div className="absolute top-0 bottom-0 w-1/3 bg-blue-500 rounded-full animate-scan"></div>
+                    </div>
+                    
+                    {/* Mock terminal output for sci-fi feel */}
+                    <div className="mt-4 w-full max-w-md bg-charcoal-900 rounded-lg p-3 text-left font-mono text-xs text-gray-400 border border-charcoal-700 shadow-inner">
+                        <div className="flex gap-2 mb-1">
+                            <span className="text-blue-500">➜</span>
+                            <span className="text-gray-300">analyze --target=q1_forecast --deep</span>
+                        </div>
+                        <div className="text-gray-500 mb-1">Loading context... Done</div>
+                        <div className="text-gray-500 mb-1">Parsing quarterly metrics... Done</div>
+                        <div className="flex gap-1">
+                            <span className="text-gray-500">Reasoning</span>
+                            <AsciiSpinner className="text-green-500" />
+                        </div>
+                    </div>
+                </div>
+            ) : analysisResult ? (
+                <div className="bg-charcoal-900 rounded-xl shadow-2xl border border-charcoal-700 overflow-hidden text-gray-200 relative min-h-[400px]">
+                    {/* HUD Header */}
+                    <div className="bg-charcoal-950/80 px-4 py-3 flex items-center justify-between border-b border-charcoal-700 shadow-sm z-20 relative backdrop-blur-sm">
+                        <div className="flex items-center gap-4">
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-blue-500 font-mono leading-none tracking-widest">ANALYSIS_ID</span>
+                                <span className="text-xs text-blue-400 font-mono font-bold tracking-wider">AF-{Math.floor(Math.random()*10000)}</span>
+                            </div>
+                            <div className="h-6 w-px bg-charcoal-700"></div>
+                            <div className="flex flex-col">
+                                <span className="text-[9px] text-blue-500 font-mono leading-none tracking-widest">LATENCY</span>
+                                <span className="text-xs text-green-500 font-mono">12ms</span>
+                            </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 border border-blue-900/50 rounded px-2 py-1 bg-blue-900/20">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></div>
+                            <span className="text-[10px] text-blue-400 font-bold tracking-widest uppercase">Secure Connection</span>
+                        </div>
+                    </div>
+                    
+                    {/* Scanning Border Effect */}
+                    <div className="absolute top-0 left-0 w-full h-full border border-blue-500/10 pointer-events-none z-10 rounded-xl"></div>
+                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500/20 to-transparent animate-scan opacity-30"></div>
+
+                    {/* Terminal Body */}
+                    <div className="p-6 max-h-[65vh] overflow-y-auto custom-scrollbar-dark bg-charcoal-900 relative z-10">
+                        <ParsedResultDisplay rawText={analysisResult} />
+                    </div>
+                </div>
+            ) : null}
+         </div>
+      </Modal>
     </div>
   );
 };

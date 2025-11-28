@@ -1,7 +1,7 @@
 {
   "name": "ibs-qfc",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,9 @@
     "lucide-react": "^0.555.0",
     "react-dom": "^19.2.0",
     "react": "^19.2.0",
-    "date-fns": "^4.1.0"
+    "date-fns": "^4.1.0",
+    "@google/genai": "^1.30.0",
+    "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
@@ -20,5 +22,5 @@
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
   },
-  "packageManager": "pnpm@10.23.0"
+  "packageManager": "pnpm@10.24.0"
 }

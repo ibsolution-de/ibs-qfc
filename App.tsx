@@ -1,46 +1,86 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { ResourcePlanner } from './components/ResourcePlanner';
 import { QuarterlyForecast } from './components/QuarterlyForecast';
 import { ManageTeam } from './components/ManageTeam';
 import { ManageProjects } from './components/ManageProjects';
+import { ManageCustomers } from './components/ManageCustomers';
+import { FinancialOverview } from './components/FinancialOverview';
 import { CreateVersionDialog } from './components/CreateVersionDialog';
-import { ViewMode, Assignment, PlanVersion, Project, Employee } from './types';
-import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS } from './constants';
-import { parseISO } from 'date-fns';
+import { MyOverview } from './components/MyOverview';
+import { Assignment, PlanVersion, Project, Employee, Customer, Absence, ViewMode } from './types';
+import { MOCK_EMPLOYEES, MOCK_VERSIONS, MOCK_PROJECTS, MOCK_CUSTOMERS } from './constants';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const App: React.FC = () => {
-  const [currentView, setCurrentView] = useState<ViewMode>(ViewMode.PLANNER);
+const STORAGE_KEYS = {
+  EMPLOYEES: 'ibs_qfc_employees',
+  PROJECTS: 'ibs_qfc_projects',
+  CUSTOMERS: 'ibs_qfc_customers',
+  VERSIONS: 'ibs_qfc_versions'
+};
+
+const loadState = <T,>(key: string, fallback: T): T => {
+  try {
+    const saved = localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch (err) {
+    console.warn(`Error loading state for ${key}`, err);
+    return fallback;
+  }
+};
+
+// Animated Page Wrapper
+const AnimatedPage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="animate-fade-in-up w-full h-full flex flex-col">
+      {children}
+    </div>
+  );
+};
+
+const AppContent: React.FC = () => {
+  const { user, isRole } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   
-  // State for Global Data
-  const [employees, setEmployees] = useState<Employee[]>(MOCK_EMPLOYEES);
-  const [projects, setProjects] = useState<Project[]>(MOCK_PROJECTS);
+  // State for Global Data - Load from LocalStorage or Fallback to Mocks
+  const [employees, setEmployees] = useState<Employee[]>(() => loadState(STORAGE_KEYS.EMPLOYEES, MOCK_EMPLOYEES));
+  const [projects, setProjects] = useState<Project[]>(() => loadState(STORAGE_KEYS.PROJECTS, MOCK_PROJECTS));
+  const [customers, setCustomers] = useState<Customer[]>(() => loadState(STORAGE_KEYS.CUSTOMERS, MOCK_CUSTOMERS));
   
   // State for versions
-  const [versions, setVersions] = useState<PlanVersion[]>(MOCK_VERSIONS);
-  // Default active version to the LATEST version (last in array)
-  const [activeVersionId, setActiveVersionId] = useState<string>(MOCK_VERSIONS[MOCK_VERSIONS.length - 1].id);
+  const [versions, setVersions] = useState<PlanVersion[]>(() => loadState(STORAGE_KEYS.VERSIONS, MOCK_VERSIONS));
+  
+  // Active Version State - ensure we pick valid ID from loaded versions
+  const [activeVersionId, setActiveVersionId] = useState<string>(() => {
+      const loadedVersions = loadState(STORAGE_KEYS.VERSIONS, MOCK_VERSIONS);
+      return loadedVersions.length > 0 ? loadedVersions[loadedVersions.length - 1].id : 'v1';
+  });
 
-  // Version Dialog State
   const [isVersionDialogOpen, setIsVersionDialogOpen] = useState(false);
+  const [highlightedProjectId, setHighlightedProjectId] = useState<string | null>(null);
+  
+  // New state for viewing specific employee overview
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 
-  // The latest version is the "Working Copy" for the Planner
+  // Persistence Effects
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees)); }, [employees]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projects)); }, [projects]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers)); }, [customers]);
+  useEffect(() => { localStorage.setItem(STORAGE_KEYS.VERSIONS, JSON.stringify(versions)); }, [versions]);
+
   const latestVersion = versions[versions.length - 1];
-  // Determine if we are viewing the latest version (editable) or an older one (read-only)
   const isLatestVersion = activeVersionId === latestVersion.id;
 
-  // The active version is for viewing historical forecasts
   const activeVersion = useMemo(() => {
     return versions.find(v => v.id === activeVersionId) || latestVersion;
   }, [versions, activeVersionId, latestVersion]);
 
-  // Planner uses the Active Version assignments (editable if latest, read-only if older)
   const plannerAssignments = activeVersion.assignments;
-  
-  // Forecast uses the Selected Version's data
+  const plannerAbsences = activeVersion.absences || [];
   const forecastData = activeVersion.forecastData;
 
-  // Determine initialDate for planner
   const versionStartDate = useMemo(() => {
     const hasQ42025 = activeVersion.forecastData.some(q => q.name === 'Q4 2025');
     if (hasQ42025) return new Date(2025, 10, 1);
@@ -49,7 +89,6 @@ const App: React.FC = () => {
     return new Date();
   }, [latestVersion, activeVersion]);
 
-  // Update assignments for the LATEST version only
   const handleAssignmentChange = (newAssignments: Assignment[]) => {
     setVersions(prev => {
         const newVersions = [...prev];
@@ -62,22 +101,32 @@ const App: React.FC = () => {
     });
   };
 
+  const handleAbsenceChange = (newAbsences: Absence[]) => {
+    setVersions(prev => {
+        const newVersions = [...prev];
+        const lastIdx = newVersions.length - 1;
+        newVersions[lastIdx] = {
+            ...newVersions[lastIdx],
+            absences: newAbsences
+        };
+        return newVersions;
+    });
+  };
+
   const handleCreateVersion = (name: string, description: string) => {
     const newVersion: PlanVersion = {
         id: Math.random().toString(36).substr(2, 9),
         name: name,
         description: description,
         createdAt: new Date().toISOString(),
-        assignments: [...plannerAssignments], // Clone current assignments
-        forecastData: JSON.parse(JSON.stringify(forecastData)) // Deep clone forecast data
+        assignments: [...plannerAssignments],
+        absences: [...plannerAbsences],
+        forecastData: JSON.parse(JSON.stringify(forecastData))
     };
-
-    // Correcting clone to always clone latest state
-    const currentLatest = versions[versions.length - 1];
-    newVersion.forecastData = JSON.parse(JSON.stringify(currentLatest.forecastData));
-
+    
+    // We deep clone forecast data to ensure the new version is independent
     setVersions(prev => [...prev, newVersion]);
-    setActiveVersionId(newVersion.id); // Switch viewing to new version
+    setActiveVersionId(newVersion.id);
   };
 
   const handleForecastUpdate = (quarterId: string, type: 'mustWin' | 'alternative', updatedProjects: Project[]) => {
@@ -85,7 +134,6 @@ const App: React.FC = () => {
         const newVersions = [...prev];
         const vIndex = newVersions.findIndex(v => v.id === activeVersionId);
         if (vIndex === -1) return prev;
-
         const version = { ...newVersions[vIndex] };
         const newForecastData = version.forecastData.map(q => {
             if (q.id === quarterId) {
@@ -96,62 +144,144 @@ const App: React.FC = () => {
             }
             return q;
         });
-        
         version.forecastData = newForecastData;
         newVersions[vIndex] = version;
         return newVersions;
     });
   };
 
+  const handleNavigateToProject = (projectId: string) => {
+    setHighlightedProjectId(projectId);
+    navigate('/projects');
+  };
+
+  const handleNavigateToEmployee = (employeeId: string) => {
+      setSelectedEmployeeId(employeeId);
+      navigate('/my-overview');
+  };
+
+  // Determine ReadOnly state for Planner
+  // Read Only if: Not Latest Version OR User is Employee
+  const isPlannerReadOnly = !isLatestVersion || isRole('employee');
+
+  // Reset Highlight effects when navigating away from specific views
+  useEffect(() => {
+      if (location.pathname !== '/projects') {
+          setHighlightedProjectId(null);
+      }
+      if (location.pathname !== '/my-overview') {
+          setSelectedEmployeeId(null);
+      }
+  }, [location.pathname]);
+
   return (
-    <div className="flex h-screen bg-white text-charcoal-800 font-sans selection:bg-pastel-blue selection:text-blue-900">
+    <div className="flex h-screen bg-charcoal-50 text-charcoal-800 font-sans selection:bg-blue-100 selection:text-blue-900 overflow-hidden">
       <Sidebar 
-        currentView={currentView} 
-        onChangeView={setCurrentView}
         versions={versions}
         activeVersionId={activeVersionId}
         onSelectVersion={setActiveVersionId}
         onCreateVersion={() => setIsVersionDialogOpen(true)}
       />
       
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Top shadow gradient for depth */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-charcoal-200/20 to-transparent z-10 pointer-events-none" />
+      <main className="flex-1 flex flex-col h-full overflow-hidden relative tech-pattern">
+        {/* Top Fade Gradient for depth */}
+        <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-charcoal-50 to-transparent z-10 pointer-events-none" />
         
-        {currentView === ViewMode.PLANNER && (
-          <ResourcePlanner 
-            key={activeVersion.id}
-            employees={employees}
-            assignments={plannerAssignments}
-            projects={projects}
-            onAssignmentChange={handleAssignmentChange}
-            initialDate={versionStartDate}
-            readOnly={!isLatestVersion}
-          />
-        )}
+        <Routes>
+            <Route path="/" element={<Navigate to={isRole('employee') ? '/my-overview' : '/planner'} replace />} />
+            
+            <Route path="/my-overview" element={
+                <AnimatedPage>
+                  <MyOverview 
+                      assignments={plannerAssignments}
+                      projects={projects}
+                      absences={plannerAbsences}
+                      employees={employees}
+                      targetEmployeeId={selectedEmployeeId}
+                  />
+                </AnimatedPage>
+            } />
 
-        {currentView === ViewMode.FORECAST && (
-          <QuarterlyForecast 
-            data={forecastData} 
-            allProjects={projects}
-            onUpdateForecast={handleForecastUpdate}
-            readOnly={!isLatestVersion}
-          />
-        )}
+            <Route path="/planner" element={
+                <AnimatedPage>
+                  <ResourcePlanner 
+                      key={activeVersion.id}
+                      employees={employees}
+                      assignments={plannerAssignments}
+                      absences={plannerAbsences}
+                      projects={projects}
+                      onAssignmentChange={handleAssignmentChange}
+                      onAbsenceChange={handleAbsenceChange}
+                      onNavigateToEmployee={handleNavigateToEmployee}
+                      initialDate={versionStartDate}
+                      readOnly={isPlannerReadOnly}
+                  />
+                </AnimatedPage>
+            } />
 
-        {currentView === ViewMode.TEAM && (
-          <ManageTeam 
-            employees={employees}
-            onUpdateEmployees={setEmployees}
-          />
-        )}
+            {isRole(['pm', 'bl']) && (
+                <>
+                    <Route path="/forecast" element={
+                        <AnimatedPage>
+                          <QuarterlyForecast 
+                              data={forecastData} 
+                              allProjects={projects}
+                              assignments={plannerAssignments}
+                              employees={employees}
+                              absences={plannerAbsences}
+                              onUpdateForecast={handleForecastUpdate}
+                              readOnly={!isLatestVersion}
+                          />
+                        </AnimatedPage>
+                    } />
 
-        {currentView === ViewMode.PROJECTS && (
-          <ManageProjects 
-            projects={projects}
-            onUpdateProjects={setProjects}
-          />
-        )}
+                    <Route path="/team" element={
+                        <AnimatedPage>
+                          <ManageTeam 
+                              employees={employees}
+                              onUpdateEmployees={setEmployees}
+                              onNavigateToEmployee={handleNavigateToEmployee}
+                          />
+                        </AnimatedPage>
+                    } />
+
+                    <Route path="/projects" element={
+                        <AnimatedPage>
+                          <ManageProjects 
+                              projects={projects}
+                              onUpdateProjects={setProjects}
+                              highlightedProjectId={highlightedProjectId}
+                          />
+                        </AnimatedPage>
+                    } />
+
+                    <Route path="/financials" element={
+                        <AnimatedPage>
+                          <FinancialOverview
+                              projects={projects}
+                              assignments={plannerAssignments}
+                              customers={customers}
+                              currentDate={versionStartDate}
+                          />
+                        </AnimatedPage>
+                    } />
+                </>
+            )}
+
+            <Route path="/customers" element={
+                <AnimatedPage>
+                  <ManageCustomers
+                      customers={customers}
+                      projects={projects}
+                      assignments={plannerAssignments}
+                      onNavigateToProject={handleNavigateToProject}
+                  />
+                </AnimatedPage>
+            } />
+            
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </main>
 
       <CreateVersionDialog 
@@ -160,6 +290,14 @@ const App: React.FC = () => {
         onCreate={handleCreateVersion}
       />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

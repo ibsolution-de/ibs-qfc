@@ -1,16 +1,18 @@
+
 import React, { useState } from 'react';
 import { Employee } from '../types';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
-import { Plus, Trash2, Edit2, Mail, Phone, Upload, User, Star } from 'lucide-react';
+import { Plus, Trash2, Edit2, Mail, Phone, Upload, User, Star, MapPin } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 
 interface ManageTeamProps {
   employees: Employee[];
   onUpdateEmployees: (employees: Employee[]) => void;
+  onNavigateToEmployee?: (employeeId: string) => void;
 }
 
-export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmployees }) => {
+export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmployees, onNavigateToEmployee }) => {
   const { t } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,11 +26,13 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmplo
     availability: 100,
     email: '',
     phone: '',
-    notes: ''
+    notes: '',
+    location: 'DE'
   });
   const [skillInput, setSkillInput] = useState('');
 
-  const handleEdit = (emp: Employee) => {
+  const handleEdit = (emp: Employee, e: React.MouseEvent) => {
+    e.stopPropagation();
     setEditingId(emp.id);
     setFormData({ ...emp });
     setIsModalOpen(true);
@@ -44,12 +48,14 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmplo
       availability: 100,
       email: '',
       phone: '',
-      notes: ''
+      notes: '',
+      location: 'DE'
     });
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     if (confirm(t('team.confirmDelete'))) {
       onUpdateEmployees(employees.filter(e => e.id !== id));
     }
@@ -118,19 +124,23 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmplo
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {employees.map(emp => (
-            <div key={emp.id} className="bg-white rounded-xl border border-charcoal-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group">
+            <div 
+                key={emp.id} 
+                onClick={() => onNavigateToEmployee && onNavigateToEmployee(emp.id)}
+                className="bg-white rounded-xl border border-charcoal-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow group cursor-pointer hover:border-blue-200"
+            >
               <div className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-4">
                     <img src={emp.avatar} alt={emp.name} className="w-14 h-14 rounded-full border border-charcoal-100 object-cover" />
                     <div>
-                      <h3 className="font-semibold text-lg text-charcoal-900 leading-tight">{emp.name}</h3>
+                      <h3 className="font-semibold text-lg text-charcoal-900 leading-tight group-hover:text-blue-600 transition-colors">{emp.name}</h3>
                       <p className="text-sm text-charcoal-500">{emp.role}</p>
                     </div>
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleEdit(emp)} className="p-1.5 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
+                    <button onClick={(e) => handleEdit(emp, e)} className="p-1.5 text-charcoal-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"><Edit2 className="w-4 h-4" /></button>
+                    <button onClick={(e) => handleDelete(emp.id, e)} className="p-1.5 text-charcoal-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </div>
 
@@ -153,9 +163,15 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmplo
                         <Phone className="w-3.5 h-3.5" />
                         <span>{emp.phone || '-'}</span>
                      </div>
-                     <div className="flex items-center gap-2 text-sm text-charcoal-600">
-                        <Star className="w-3.5 h-3.5" />
-                        <span>{emp.availability}% {t('team.availability')}</span>
+                     <div className="flex justify-between">
+                         <div className="flex items-center gap-2 text-sm text-charcoal-600">
+                            <Star className="w-3.5 h-3.5" />
+                            <span>{emp.availability}% {t('team.availability')}</span>
+                         </div>
+                         <div className="flex items-center gap-2 text-sm text-charcoal-600">
+                            <MapPin className="w-3.5 h-3.5" />
+                            <span className="font-medium">{emp.location || 'DE'}</span>
+                         </div>
                      </div>
                   </div>
                   
@@ -213,15 +229,31 @@ export const ManageTeam: React.FC<ManageTeamProps> = ({ employees, onUpdateEmplo
                </div>
             </div>
 
-            <div>
-               <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
-                  {t('team.availability')} ({formData.availability}%)
-               </label>
-               <input type="range" min="0" max="100" step="10" className="w-full h-2 bg-charcoal-100 rounded-lg appearance-none cursor-pointer accent-charcoal-800" 
-                  value={formData.availability} onChange={e => setFormData({...formData, availability: Number(e.target.value)})} />
-               <div className="flex justify-between text-xs text-charcoal-400 mt-1">
-                  <span>0%</span><span>50%</span><span>100%</span>
-               </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div>
+                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                      {t('team.availability')} ({formData.availability}%)
+                   </label>
+                   <input type="range" min="0" max="100" step="10" className="w-full h-2 bg-charcoal-100 rounded-lg appearance-none cursor-pointer accent-charcoal-800" 
+                      value={formData.availability} onChange={e => setFormData({...formData, availability: Number(e.target.value)})} />
+                   <div className="flex justify-between text-xs text-charcoal-400 mt-1">
+                      <span>0%</span><span>50%</span><span>100%</span>
+                   </div>
+                </div>
+                <div>
+                   <label className="block text-xs font-semibold text-charcoal-500 uppercase tracking-wider mb-1.5">
+                      {t('team.location')}
+                   </label>
+                   <select 
+                      className="w-full px-3 py-2 border border-charcoal-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none bg-white"
+                      value={formData.location}
+                      onChange={e => setFormData({...formData, location: e.target.value})}
+                   >
+                       <option value="DE">Germany (DE)</option>
+                       <option value="US">United States (US)</option>
+                       <option value="UK">United Kingdom (UK)</option>
+                   </select>
+                </div>
             </div>
 
             <div>

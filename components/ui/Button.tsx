@@ -12,13 +12,13 @@ export const Button: React.FC<ButtonProps> = ({
   size = 'md', 
   ...props 
 }) => {
-  const baseStyles = "inline-flex items-center justify-center rounded-md font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal-400 disabled:pointer-events-none disabled:opacity-50";
+  const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-charcoal-400 disabled:pointer-events-none disabled:opacity-50 active:scale-95 transform cursor-pointer";
   
   const variants = {
-    primary: "bg-charcoal-800 text-white hover:bg-charcoal-700 shadow-sm",
-    secondary: "bg-charcoal-100 text-charcoal-900 hover:bg-charcoal-200",
-    ghost: "hover:bg-charcoal-100 hover:text-charcoal-900",
-    outline: "border border-charcoal-200 bg-white hover:bg-charcoal-50 text-charcoal-900",
+    primary: "bg-charcoal-800 text-white hover:bg-charcoal-900 shadow-sm hover:shadow-lg hover:-translate-y-0.5 border border-transparent",
+    secondary: "bg-white text-charcoal-900 hover:bg-charcoal-50 shadow-sm hover:shadow-md border border-charcoal-200 hover:border-charcoal-300",
+    ghost: "hover:bg-charcoal-100 hover:text-charcoal-900 text-charcoal-600",
+    outline: "border border-charcoal-200 bg-transparent hover:bg-charcoal-50 text-charcoal-700 hover:border-charcoal-300",
   };
 
   const sizes = {
