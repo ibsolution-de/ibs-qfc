@@ -16,7 +16,7 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
   const prompt = `
     You are an expert Project Manager Assistant and Resource Planner.
     Analyze the following quarterly forecast data for ${quarterData.name}.
-    
+
     Data:
     - Total Monthly Capacities: ${quarterData.totalCapacity.join(', ')} (Days)
     - Running Projects: ${quarterData.runningProjects.map(p => `${p.name} (${p.volume}d)`).join(', ')}
@@ -28,18 +28,20 @@ export const generateForecastAnalysis = async (quarterData: QuarterData, apiKey:
     1. Overall capacity status (Under/Over/Optimal).
     2. Key risks regarding specific projects or resource gaps.
     3. Three specific recommendations for the Project Manager.
-    
+
     Format the output in Markdown with bold headers.
     IMPORTANT: The response MUST be in ${targetLanguage}.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-2.5-pro', // 'gemini-3-pro-preview',
       contents: prompt,
+      /*
       config: {
         thinkingConfig: { thinkingBudget: 32768 } // Using max thinking budget for complex analysis
       }
+      */
     });
 
     return response.text;
